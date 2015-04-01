@@ -13,6 +13,8 @@
 
 (emf/load-ecore-resource "models/TypeGraphBasic.ecore")
 
+;;* Task 1: JaMoPP to Program Graph
+
 (def ^:dynamic *tg* nil)
 
 (defn get-ref-target [^TypeReference ref]
@@ -21,6 +23,14 @@
 (defn get-type [typed-element]
   (get-ref-target (emf/eget typed-element :typeReference)))
 
+(defn overridden-or-hidden-def [def sig]
+  (let [tc (emf/econtainer def)]
+    (loop [super (emf/eget tc :inheritance)]
+      (when super
+        (or (first (filter #(= sig (emf/eget % :signature))
+                           (emf/eget super :defines)))
+            (recur (emf/eget super :inheritance)))))))
+
 (m2m/deftransformation jamopp2pg [[jamopp] [pg] base-pkg]
   (user-defined?
    [^ConcreteClassifier cc]
@@ -28,16 +38,18 @@
   (main
    []
    (binding [*tg* (emf/ecreate! pg 'TypeGraph)]
-     (let [user-classes (for [c (emf/eallcontents jamopp 'Class)
-                              :when (user-defined? c)]
-                          c)]
-       (doseq [c user-classes]
-         (class2tclass c))
-       (doseq [m (sequence (comp (mapcat #(emf/eget % :members))
-                                 (filter #(or (g/has-type? % 'Field)
-                                              (g/has-type? % 'Method))))
-                           user-classes)]
-         (emf/eset! (member2tmemberdef m) :access (member-accesses m))))))
+     (doseq [c (filter user-defined?
+                       (emf/eallcontents jamopp 'Class))]
+       (class2tclass c))
+     ;; overloaded methods/hidden fields
+     (doseq [tmsig (emf/eallcontents pg 'TSignature)
+             tmdef (emf/eget tmsig :definitions)]
+       (when-let [stmdef (overridden-or-hidden-def tmdef tmsig)]
+         ;; FIXME: The :overridden/:hidden refs shouldn't be multi-valued.
+         (emf/eadd! tmdef (g/type-case tmdef
+                            TMethodDefinition :overridden
+                            TFieldDefinition  :hidden)
+                    stmdef)))))
   (type-name
    [t]
    (g/type-case t
@@ -66,17 +78,19 @@
    (when (user-defined? c)
      (when-let [super-ref (emf/eget c :extends)]
        (emf/eset! tc :inheritance (class2tclass (get-ref-target super-ref))))
-     (let [tfields (mapv #(field2tfielddef %)
-                         (filter (g/type-matcher jamopp 'Field)
-                                 (emf/eget c :members)))
-           tmethods (mapv #(method2tmethoddef %)
-                          (filter (g/type-matcher jamopp 'Method)
-                                  (emf/eget c :members)))]
+     (let [fields (filter (g/type-matcher jamopp 'Field)
+                          (emf/eget c :members))
+           tfields (map #(field2tfielddef %) fields)
+           methods (filter (g/type-matcher jamopp 'Method)
+                           (emf/eget c :members))
+           tmethods (map #(method2tmethoddef %) methods)]
        (emf/eaddall! tc :defines (concat tfields tmethods))
-       (emf/eaddall! tc :signature (concat (mapv #(emf/eget % :signature)
-                                                 tfields)
-                                           (mapv #(emf/eget % :signature)
-                                                 tmethods))))))
+       (emf/eaddall! tc :signature (concat (map #(emf/eget % :signature)
+                                                tfields)
+                                           (map #(emf/eget % :signature)
+                                                tmethods)))
+       (doseq [m (concat fields methods)]
+         (emf/eset! (member2tmemberdef m) :access (member-accesses m))))))
   (primitive2tclass
    :from [pt 'PrimitiveType]
    :to [tc 'TClass {:tName (type-name pt)}])
@@ -114,4 +128,6 @@
    :from [m 'Method]
    :to   [tmd 'TMethodDefinition]
    (emf/eset! tmd :signature (get-tmethodsig m))))
+
+;;* Task 2: Refactoring on the Program Graph
 
