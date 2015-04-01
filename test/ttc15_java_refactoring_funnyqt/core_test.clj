@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [funnyqt.visualization :as viz]
             [funnyqt.emf :as emf]
-            [ttc15-java-refactoring-funnyqt.core :refer :all]
+            [ttc15-java-refactoring-funnyqt.jamopp2pg :refer :all]
             [ttc15-java-refactoring-funnyqt.jamopp :as jamopp])
   (:import
    (org.eclipse.emf.ecore.resource Resource ResourceSet)
