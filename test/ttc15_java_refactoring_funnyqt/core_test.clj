@@ -3,7 +3,8 @@
             [funnyqt.visualization :as viz]
             [funnyqt.emf :as emf]
             [ttc15-java-refactoring-funnyqt.jamopp2pg :refer :all]
-            [ttc15-java-refactoring-funnyqt.jamopp :as jamopp])
+            [ttc15-java-refactoring-funnyqt.jamopp    :as jamopp]
+            [ttc15-java-refactoring-funnyqt.refactor  :refer :all])
   (:import
    (org.eclipse.emf.ecore.resource Resource ResourceSet)
    (org.eclipse.emf.common.util URI)))

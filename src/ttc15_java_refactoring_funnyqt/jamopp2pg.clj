@@ -24,11 +24,11 @@
 
 (defn overridden-or-hidden-def [def sig]
   (let [tc (econtainer def)]
-    (loop [super (eget tc :inheritance)]
+    (loop [super (eget tc :superclass)]
       (when super
         (or (first (filter #(= sig (eget % :signature))
                            (eget super :defines)))
-            (recur (eget super :inheritance)))))))
+            (recur (eget super :superclass)))))))
 
 (deftransformation jamopp2pg [[jamopp] [pg] base-pkg]
   (user-defined?
@@ -76,7 +76,7 @@
    (eset! tc :tName (type-name c))
    (when (user-defined? c)
      (when-let [super-ref (eget c :extends)]
-       (eset! tc :inheritance (class2tclass (get-ref-target super-ref))))
+       (eset! tc :superclass (class2tclass (get-ref-target super-ref))))
      (let [fields (filter (type-matcher jamopp 'Field)
                           (eget c :members))
            tfields (map #(field2tfielddef %) fields)
