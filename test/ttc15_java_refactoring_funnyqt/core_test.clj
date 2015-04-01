@@ -10,6 +10,7 @@
 
 (def test1-jamopp (jamopp/parse-directory "test-src/test1/"))
 (def test2-jamopp (jamopp/parse-directory "test-src/test2/"))
+(def test3-jamopp (jamopp/parse-directory "test-src/test3/"))
 
 (defn print-jamopp-resource [^ResourceSet rs res-name]
   (if-let [r (.getResource rs (URI/createFileURI res-name) true)]

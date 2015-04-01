@@ -1,6 +1,8 @@
 (ns ttc15-java-refactoring-funnyqt.core
   (:require [clojure.string      :as str]
             [funnyqt.emf         :as emf]
+            [funnyqt.query       :refer [p-seq p-* p-alt p-restr p-apply]]
+            [funnyqt.query.emf   :refer [<>--]]
             [funnyqt.generic     :as g]
             [funnyqt.model2model :as m2m]
             [ttc15-java-refactoring-funnyqt.jamopp :as jamopp])
@@ -26,9 +28,16 @@
   (main
    []
    (binding [*tg* (emf/ecreate! pg 'TypeGraph)]
-     (doseq [c (emf/eallcontents jamopp 'Class)
-             :when (user-defined? c)]
-       (class2tclass c))))
+     (let [user-classes (for [c (emf/eallcontents jamopp 'Class)
+                              :when (user-defined? c)]
+                          c)]
+       (doseq [c user-classes]
+         (class2tclass c))
+       (doseq [m (sequence (comp (mapcat #(emf/eget % :members))
+                                 (filter #(or (g/has-type? % 'Field)
+                                              (g/has-type? % 'Method))))
+                           user-classes)]
+         (emf/eset! (member2tmemberdef m) :access (member-accesses m))))))
   (type-name
    [t]
    (g/type-case t
@@ -39,6 +48,16 @@
   (type2tclass
    :from [t 'Type]
    :disjuncts [class2tclass primitive2tclass])
+  (member2tmemberdef
+   :from [m 'Member]
+   :disjuncts [field2tfielddef method2tmethoddef])
+  (member-accesses
+   [m]
+   (map member2tmemberdef
+        (p-apply m [p-seq
+                    [p-alt :statements :initialValue]
+                    [p-* <>--]
+                    :target])))
   (class2tclass
    :from [c 'Class]
    :to [tc 'TClass]
@@ -53,8 +72,6 @@
            tmethods (mapv #(method2tmethoddef %)
                           (filter (g/type-matcher jamopp 'Method)
                                   (emf/eget c :members)))]
-       (println "tfields =" tfields)
-       (println "tmethods =" tmethods)
        (emf/eaddall! tc :defines (concat tfields tmethods))
        (emf/eaddall! tc :signature (concat (mapv #(emf/eget % :signature)
                                                  tfields)
