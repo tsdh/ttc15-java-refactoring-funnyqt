@@ -18,6 +18,7 @@
    ;; Really all subclasses define a method with sig
    :when (= (count (eget super :subclasses))
             (inc (count others)))]
+  (println "pulling up" (-> sig (eget :method) (eget :tName)))
   ;; Delete the other method defs
   (doseq [o others]
     (edelete! (:omd o)))

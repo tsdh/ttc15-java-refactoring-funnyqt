@@ -1,25 +1,52 @@
 package test3;
 
 public class A {
-    protected int aField = 17;
+    int aField = 17;
 
     String getSentence() {
 	return " is the answer!";
     }
+
+    String getFieldCannotBePulled() {}
 }
 
 class B extends A {
-    int bField = aField + 1;
+    String bField = aField + "bing";
 
-    String getString() {
+    String canBePulled1() {
 	return aField + getSentence();
+    }
+
+    String canBePulled2() {
+	return getFieldCannotBePulled();
+    }
+
+    String getFieldCannotBePulled() {
+	return bField;
+    }
+
+    String cannotBePulled() {
+	return bField;
     }
 }
 
 class C extends A {
-    int cField = aField - 1;
+    String cField = aField + "bong";
 
-    String getString() {
+    String canBePulled1() {
 	return aField + getSentence();
+    }
+
+    String canBePulled2() {
+	return getFieldCannotBePulled();
+    }
+
+    String getFieldCannotBePulled() {
+	return bField;
+    }
+
+
+    String cannotBePulled() {
+	return cField;
     }
 }

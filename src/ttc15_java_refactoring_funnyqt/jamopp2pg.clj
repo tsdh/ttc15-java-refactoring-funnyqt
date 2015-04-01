@@ -20,7 +20,9 @@
   (.getTarget ref))
 
 (defn get-type [typed-element]
-  (get-ref-target (eget typed-element :typeReference)))
+  (if-let [tr (eget typed-element :typeReference)]
+    (get-ref-target tr)
+    (funnyqt.utils/errorf "%s has no typeReference!" typed-element)))
 
 (defn overridden-or-hidden-def [def sig]
   (let [tc (econtainer def)]
@@ -68,7 +70,8 @@
         (p-apply m [p-seq
                     [p-alt :statements :initialValue]
                     [p-* <>--]
-                    :target])))
+                    :target
+                    [p-restr [:or 'Field 'ClassMethod]]])))
   (class2tclass
    :from [c 'Class]
    :to [tc 'TClass]
@@ -80,7 +83,7 @@
      (let [fields (filter (type-matcher jamopp 'Field)
                           (eget c :members))
            tfields (map #(field2tfielddef %) fields)
-           methods (filter (type-matcher jamopp 'Method)
+           methods (filter (type-matcher jamopp 'ClassMethod)
                            (eget c :members))
            tmethods (map #(method2tmethoddef %) methods)]
        (eaddall! tc :defines (concat tfields tmethods))
@@ -109,12 +112,12 @@
    :to   [tfd 'TFieldDefinition]
    (eset! tfd :signature (get-tfieldsig f)))
   (get-tmethod
-   :from [m 'Method]
+   :from [m 'ClassMethod]
    :id   [name (eget m :name)]
    :to   [tm 'TMethod {:tName name}]
    (eadd! *tg* :methods tm))
   (get-tmethodsig
-   :from [m 'Method]
+   :from [m 'ClassMethod]
    :id   [sig (str (type-name (get-type m))
                    (eget m :name)
                    "(" (str/join ", " (map #(type-name (get-type %))
@@ -124,6 +127,6 @@
                                  :paramList (map #(type2tclass (get-type %))
                                                  (eget m :parameters))}])
   (method2tmethoddef
-   :from [m 'Method]
+   :from [m 'ClassMethod]
    :to   [tmd 'TMethodDefinition]
    (eset! tmd :signature (get-tmethodsig m))))
