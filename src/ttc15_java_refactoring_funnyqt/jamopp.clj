@@ -68,3 +68,10 @@
     ;; so no need to try it again.
     #_(resolve-all rs)
     rs))
+
+(defn serialize [^ResourceSet rs]
+  (doseq [^Resource r (.getResources rs)
+          :when (and (.isModified r)
+                     (.isFile (.getURI r)))]
+    (println "Serializing " (.toFileString (.getURI r)))
+    (.save r {})))
