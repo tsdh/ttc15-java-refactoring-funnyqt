@@ -1,7 +1,7 @@
 (ns ttc15-java-refactoring-funnyqt.jamopp2pg
   (:require [clojure.string      :as str]
             [funnyqt.emf         :refer :all]
-            [funnyqt.query       :refer [p-seq p-* p-alt p-restr p-apply]]
+            [funnyqt.query       :refer [p-seq p-* p-alt p-restr p-apply member?]]
             [funnyqt.query.emf   :refer [<>--]]
             [funnyqt.generic     :refer [type-case type-matcher]]
             [funnyqt.model2model :refer [deftransformation]])
@@ -15,6 +15,10 @@
 ;;* Task 1: JaMoPP to Program Graph
 
 (def ^:dynamic *tg* nil)
+
+(defn static? [x]
+  (seq (filter (type-matcher x 'Static)
+               (eget x :annotationsAndModifiers))))
 
 (defn get-ref-target [^TypeReference ref]
   (.getTarget ref))
@@ -70,7 +74,8 @@
                     [p-alt :statements :initialValue]
                     [p-* <>--]
                     :target
-                    [p-restr [:or 'Field 'ClassMethod]]])))
+                    [p-restr [:or 'Field 'ClassMethod]
+                     (complement static?)]])))
   (class2tclass
    :from [c 'Class]
    :to [tc 'TClass]
@@ -79,11 +84,11 @@
    (when (user-defined? c)
      (when-let [super-ref (eget c :extends)]
        (eset! tc :parentClass (class2tclass (get-ref-target super-ref))))
-     (let [fields (filter (type-matcher jamopp 'Field)
-                          (eget c :members))
+     (let [fields (remove static? (filter (type-matcher jamopp 'Field)
+                                          (eget c :members)))
            tfields (map #(field2tfielddef %) fields)
-           methods (filter (type-matcher jamopp 'ClassMethod)
-                           (eget c :members))
+           methods (remove static? (filter (type-matcher jamopp 'ClassMethod)
+                                           (eget c :members)))
            tmethods (map #(method2tmethoddef %) methods)]
        (eaddall! tc :defines (concat tfields tmethods))
        (eaddall! tc :signature (concat (map #(eget % :signature)
@@ -94,7 +99,8 @@
          (eset! (member2tmemberdef m) :access (member-accesses m))))))
   (primitive2tclass
    :from [pt 'PrimitiveType]
-   :to [tc 'TClass {:tName (type-name pt)}])
+   :id   [name (type-name pt)]
+   :to   [tc 'TClass {:tName name}])
   (get-tfield
    :from [f 'Field]
    :id   [name (eget f :name)]
@@ -108,6 +114,7 @@
                                 :type  (type2tclass (get-type f))}])
   (field2tfielddef
    :from [f 'Field]
+   :when (not (static? f))
    :to   [tfd 'TFieldDefinition]
    (eset! tfd :signature (get-tfieldsig f)))
   (get-tmethod
@@ -126,5 +133,6 @@
                                                  (eget m :parameters))}])
   (method2tmethoddef
    :from [m 'ClassMethod]
+   :when (not (static? m))
    :to   [tmd 'TMethodDefinition {:returnType (type2tclass (get-type m))}]
    (eset! tmd :signature (get-tmethodsig m))))
