@@ -26,11 +26,11 @@
 
 (defn overridden-or-hidden-def [def sig]
   (let [tc (econtainer def)]
-    (loop [super (eget tc :superclass)]
+    (loop [super (eget tc :parentClass)]
       (when super
         (or (first (filter #(= sig (eget % :signature))
                            (eget super :defines)))
-            (recur (eget super :superclass)))))))
+            (recur (eget super :parentClass)))))))
 
 (deftransformation jamopp2pg [[jamopp] [pg] base-pkg]
   (user-defined?
@@ -46,10 +46,9 @@
      (doseq [tmsig (eallcontents pg 'TSignature)
              tmdef (eget tmsig :definitions)]
        (when-let [stmdef (overridden-or-hidden-def tmdef tmsig)]
-         ;; FIXME: The :overridden/:hidden refs shouldn't be multi-valued.
-         (eadd! tmdef (type-case tmdef
-                        TMethodDefinition :overridden
-                        TFieldDefinition  :hidden)
+         (eset! tmdef (type-case tmdef
+                        TMethodDefinition :overriding
+                        TFieldDefinition  :hiding)
                 stmdef)))))
   (type-name
    [t]
@@ -79,7 +78,7 @@
    (eset! tc :tName (type-name c))
    (when (user-defined? c)
      (when-let [super-ref (eget c :extends)]
-       (eset! tc :superclass (class2tclass (get-ref-target super-ref))))
+       (eset! tc :parentClass (class2tclass (get-ref-target super-ref))))
      (let [fields (filter (type-matcher jamopp 'Field)
                           (eget c :members))
            tfields (map #(field2tfielddef %) fields)
@@ -123,10 +122,9 @@
                    "(" (str/join ", " (map #(type-name (get-type %))
                                            (eget m :parameters))) ")")]
    :to   [tms 'TMethodSignature {:method (get-tmethod m)
-                                 :returnType (type2tclass (get-type m))
                                  :paramList (map #(type2tclass (get-type %))
                                                  (eget m :parameters))}])
   (method2tmethoddef
    :from [m 'ClassMethod]
-   :to   [tmd 'TMethodDefinition]
+   :to   [tmd 'TMethodDefinition {:returnType (type2tclass (get-type m))}]
    (eset! tmd :signature (get-tmethodsig m))))

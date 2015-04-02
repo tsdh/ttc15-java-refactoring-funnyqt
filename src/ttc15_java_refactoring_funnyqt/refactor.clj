@@ -6,10 +6,10 @@
 
 ;; TODO: Check accesses!
 (defrule pull-up-method [g]
-  [super<TClass> -<:subclasses>-> sub
+  [super<TClass> -<:childClasses>-> sub
    -<:defines>-> md<TMethodDefinition>
    -<:signature>-> sig
-   :nested [others [super -<:subclasses>-> osub
+   :nested [others [super -<:childClasses>-> osub
                     :when (not= sub osub)
                     osub -<:defines>-> omd<TMethodDefinition>
                     -<:signature>-> sig]]

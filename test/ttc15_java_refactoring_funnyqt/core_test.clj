@@ -13,6 +13,15 @@
 (def test2-jamopp (jamopp/parse-directory "test-src/test2/"))
 (def test3-jamopp (jamopp/parse-directory "test-src/test3/"))
 (def test4-jamopp (jamopp/parse-directory "test-src/test4/"))
+(def test5-jamopp (jamopp/parse-directory "test-src/test5/"))
+
+(deftest test-jamopp2pg
+  (doseq [^java.io.File dir (.listFiles (clojure.java.io/file "test-src"))]
+    (println "Testing with package" (.getName dir) "...")
+    (let [jamopp (jamopp/parse-directory (.getPath dir))
+          pg (emf/new-resource)
+          mappings(jamopp2pg jamopp pg (.getName dir))]
+      (println "Worked!"))))
 
 (defn print-jamopp-resource [^ResourceSet rs res-name]
   (if-let [r (.getResource rs (URI/createFileURI res-name) true)]
