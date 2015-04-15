@@ -1,10 +1,13 @@
 package test4;
 
+
 public class A {
-    int field;
+	int field;
 }
 
 class B extends A {
-    // hides A.field
-    int field;
+	int field;
 }
+
+
+

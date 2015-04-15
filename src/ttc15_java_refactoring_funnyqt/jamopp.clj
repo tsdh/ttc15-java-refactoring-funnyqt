@@ -1,5 +1,6 @@
 (ns ttc15-java-refactoring-funnyqt.jamopp
   (:require [clojure.java.io :as io]
+            [clojure.string  :as str]
             [funnyqt.emf     :as emf])
   (:import
    ;; EMF
@@ -69,9 +70,14 @@
     #_(resolve-all rs)
     rs))
 
-(defn serialize [^ResourceSet rs]
+(defn save-java-rs [^ResourceSet rs src-dir base-pkg]
   (doseq [^Resource r (.getResources rs)
-          :when (and (.isModified r)
-                     (.isFile (.getURI r)))]
-    (println "Serializing " (.toFileString (.getURI r)))
-    (.save r {})))
+          :let [uri (.getURI r)]
+          :when (and (.isFile uri)
+                     (if base-pkg
+                       (re-matches (re-pattern (str "^" src-dir
+                                                    (str/replace base-pkg \. \/)
+                                                    "/.*\\.java$"))
+                                   (.path uri))
+                       true))]
+    (emf/save-resource r)))
