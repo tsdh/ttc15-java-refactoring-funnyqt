@@ -10,7 +10,7 @@
            (org.emftext.language.java.types
             TypeReference PrimitiveType)))
 
-(load-ecore-resource "models/TypeGraphBasic.ecore")
+(load-ecore-resource "TypeGraphBasic.ecore")
 
 ;;* Task 1: JaMoPP to Program Graph
 

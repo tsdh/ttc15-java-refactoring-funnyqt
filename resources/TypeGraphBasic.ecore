@@ -18,7 +18,7 @@
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EClass" name="TFieldDefinition" eSuperTypes="//TMember">
     <eStructuralFeatures xsi:type="ecore:EReference" name="hiding" eType="//TFieldDefinition" eOpposite="//TFieldDefinition/hiddenBy"/>
-    <eStructuralFeatures xsi:type="ecore:EReference" name="hiddenBy" eType="//TFieldDefinition" eOpposite="//TFieldDefinition/hiding"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="hiddenBy" upperBound="-1" eType="//TFieldDefinition" eOpposite="//TFieldDefinition/hiding"/>
     <eStructuralFeatures xsi:type="ecore:EReference" name="signature" lowerBound="1" eType="//TFieldSignature" eOpposite="//TFieldSignature/definitions"/>
   </eClassifiers>
   <eClassifiers xsi:type="ecore:EClass" name="TFieldSignature" eSuperTypes="//TSignature">
