@@ -1,5 +1,6 @@
 (ns ttc15-java-refactoring-funnyqt.jamopp2pg
   (:require [clojure.string      :as str]
+            [clojure.set         :as set]
             [funnyqt.emf         :refer :all]
             [funnyqt.query       :refer [p-seq p-* p-alt p-restr p-apply member?]]
             [funnyqt.query.emf   :refer [<>--]]
