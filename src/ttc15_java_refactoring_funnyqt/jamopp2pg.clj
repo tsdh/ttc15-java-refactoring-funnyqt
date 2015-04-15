@@ -136,3 +136,9 @@
    :when (not (static? m))
    :to   [tmd 'TMethodDefinition {:returnType (type2tclass (get-type m))}]
    (eset! tmd :signature (get-tmethodsig m))))
+
+(defn prepare-pg2jamopp-map [trace]
+  (println (:method2tmethoddef trace))
+  (into {} (comp (map #(% trace))
+                 (map set/map-invert))
+        [:class2tclass :field2tfielddef :method2tmethoddef]))

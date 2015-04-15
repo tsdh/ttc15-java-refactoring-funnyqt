@@ -21,14 +21,13 @@
                       (eget-raw cls :signature))
              (superclass? cls defining-cls)))))
 
-(defrule pull-up-method [g pg2jamopp-map-atom]
-  [super<TClass> -<:childClasses>-> sub
-   -<:defines>-> md<TMethodDefinition>
-   -<:signature>-> sig
+(defrule pull-up-method [g pg2jamopp-map-atom super sig]
+  [super<TClass> -<:childClasses>-> sub -<:signature>-> sig
+   sub -<:defines>-> md<TMethodDefinition> -<:signature>-> sig
    :nested [others [super -<:childClasses>-> osub
                     :when (not= sub osub)
-                    osub -<:defines>-> omd<TMethodDefinition>
-                    -<:signature>-> sig]]
+                    osub -<:signature>-> sig
+                    osub -<:defines>-> omd<TMethodDefinition> -<:signature>-> sig]]
    ;; super doesn't have such a method of this signature already
    super -!<:signature>-> sig
    ;; Really all subclasses define a method with sig
@@ -41,11 +40,15 @@
                   (mapcat #(eget % :access) all-mds))]
   (println "pulling up" (-> sig (eget :method) (eget :tName))
            "from" (eget sub :tName) "to" (eget super :tName))
-  (println @pg2jamopp-map-atom)
   ;; Delete the other method defs
   (doseq [o others]
     (edelete! (:omd o))
-    #_(edelete! (@pg2jamopp-map-atom (:omd o))))
+    (edelete! (@pg2jamopp-map-atom (:omd o))))
   ;; Add it to the super class
   (eadd! super :defines md)
-  (eadd! super :signature sig))
+  (eadd! super :signature sig)
+  (fn []
+    (doseq [o others]
+      (edelete! (@pg2jamopp-map-atom (:omd o)))
+      (swap! pg2jamopp-map-atom dissoc (:omd o)))
+    (eadd! (@pg2jamopp-map-atom super) :members (@pg2jamopp-map-atom md))))
