@@ -15,21 +15,21 @@
 
 ;;* Task 1: JaMoPP to Program Graph
 
-(def ^:dynamic *tg* nil)
+(def ^:private ^:dynamic *tg* nil)
 
-(defn static? [x]
+(defn ^:private static? [x]
   (seq (filter (type-matcher x 'Static)
                (eget x :annotationsAndModifiers))))
 
-(defn get-ref-target [^TypeReference ref]
+(defn ^:private get-ref-target [^TypeReference ref]
   (.getTarget ref))
 
-(defn get-type [typed-element]
+(defn ^:private get-type [typed-element]
   (if-let [tr (eget typed-element :typeReference)]
     (get-ref-target tr)
     (funnyqt.utils/errorf "%s has no typeReference!" typed-element)))
 
-(defn overridden-or-hidden-def [def sig]
+(defn ^:private overridden-or-hidden-def [def sig]
   (let [tc (econtainer def)]
     (loop [super (eget tc :parentClass)]
       (when super
@@ -139,7 +139,6 @@
    (eset! tmd :signature (get-tmethodsig m))))
 
 (defn prepare-pg2jamopp-map [trace]
-  (println (:method2tmethoddef trace))
   (into {} (comp (map #(% trace))
                  (map set/map-invert))
         [:class2tclass :field2tfielddef :method2tmethoddef]))

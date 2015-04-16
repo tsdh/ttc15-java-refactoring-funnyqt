@@ -15,8 +15,8 @@
                   :exclusions [org.eclipse.emf/org.eclipse.emf.ecore
                                org.eclipse.emf/org.eclipse.emf.ecore.change]]]
   :global-vars {*warn-on-reflection* true}
-  :resource-paths ["resources/" "resources/TTCTestInterface.jar"]
-  :aot [ttc15-java-refactoring-funnyqt.test-iface]
+  :java-source-paths ["java-src"]
+  :resource-paths ["resources" "resources/TTCTestInterface.jar"]
   :jvm-opts ^:replace ["-Xmx1G"]
   :repositories [["JaMoPP Snapshots" "http://jamopp.org/maven-repository-snapshot/"]
                  ["EMFText Snapshots" "http://emftext.org/maven-repository-snapshot/"]])
