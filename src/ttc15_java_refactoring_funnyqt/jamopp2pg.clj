@@ -30,7 +30,7 @@
     (funnyqt.utils/errorf "%s has no typeReference!" typed-element)))
 
 (defn ^:private overridden-or-hidden-def [def sig]
-  (let [tc (econtainer def)]
+  (when-let [tc (econtainer def)]
     (loop [super (eget tc :parentClass)]
       (when super
         (or (first (filter #(= sig (eget % :signature))

@@ -10,7 +10,9 @@
 ;;* Utils
 
 (defn find-tclass [pg ^Java_Class c]
-  (let [qn (str (.getPackage c) "." (.getClass_name c))
+  (let [qn (if-let [pn (.getPackage c)]
+             (str pn "." (.getClass_name c))
+             (.getClass_name c))
         tcs (filter #(= qn (eget-raw % :tName))
                     (eallcontents pg 'TClass))]
     (if (fnext tcs)

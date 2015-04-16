@@ -14,20 +14,28 @@ import ttc.testsuite.interfaces.TestInterface;
 import ttc.testdsl.tTCTest.*;
 
 public class TestInterfaceImpl implements TestInterface {
-    private static final IFn PARSE_DIRECTORY
-	= Clojure.var("ttc15-java-refactoring-funnyqt.jamopp/parse-directory");
-    private static final IFn SAVE_JAVA_RESOURCE_SET
-	= Clojure.var("ttc15-java-refactoring-funnyqt.jamopp/save-java-rs");
-    private static final IFn JAMOPP_TO_PG
-	= Clojure.var("ttc15-java-refactoring-funnyqt.jamopp2pg/jamopp2pg");
-    private static final IFn PREPARE_PG_TO_JAMOPP_MAP
-	= Clojure.var("ttc15-java-refactoring-funnyqt.jamopp2pg/prepare-pg2jamopp-map");
-    private static final IFn FIND_TCLASS
-	= Clojure.var("ttc15-java-refactoring-funnyqt.refactor/find-tclass");
-    private static final IFn FIND_TMETHODSIGNATURE
-	= Clojure.var("ttc15-java-refactoring-funnyqt.refactor/find-tmethodsig");
-    private static final IFn REF_PULL_UP_METHOD
-	= Clojure.var("ttc15-java-refactoring-funnyqt.refactor/pull-up-method");
+
+    static {
+	Thread.currentThread().setContextClassLoader(TestInterfaceImpl.class.getClassLoader());
+    }
+
+    private static final IFn R = Clojure.var("clojure.core", "require");
+    private static String NS_JAMOPP = "ttc15-java-refactoring-funnyqt.jamopp";
+    private static String NS_JAMOPP2PG = "ttc15-java-refactoring-funnyqt.jamopp2pg";
+    private static String NS_REFACTOR = "ttc15-java-refactoring-funnyqt.refactor";
+    // Require the namespaces
+    static {
+	for (String ns : new String[] {NS_JAMOPP, NS_JAMOPP2PG, NS_REFACTOR}) {
+	    R.invoke(Clojure.read(ns));
+	}
+    }
+    private static final IFn PARSE_DIRECTORY = Clojure.var(NS_JAMOPP, "parse-directory");
+    private static final IFn SAVE_JAVA_RESOURCE_SET = Clojure.var(NS_JAMOPP, "save-java-rs");
+    private static final IFn JAMOPP_TO_PG = Clojure.var(NS_JAMOPP2PG, "jamopp2pg");
+    private static final IFn PREPARE_PG_TO_JAMOPP_MAP = Clojure.var(NS_JAMOPP2PG, "prepare-pg2jamopp-map");
+    private static final IFn FIND_TCLASS = Clojure.var(NS_REFACTOR, "find-tclass");
+    private static final IFn FIND_TMETHODSIGNATURE = Clojure.var(NS_REFACTOR, "find-tmethodsig");
+    private static final IFn REF_PULL_UP_METHOD = Clojure.var(NS_REFACTOR, "pull-up-method");
 
     private Object jamoppRS;
     private Resource programGraph;
@@ -35,26 +43,24 @@ public class TestInterfaceImpl implements TestInterface {
     private ArrayList<IFn> synchronizeFns = new ArrayList<IFn>();
 
     public String getPluginName() {
+	System.out.println("getPluginName()");
 	return "FunnyQT";
     }
 
     public boolean usesProgramGraph() {
+	System.out.println("usesProgramGraph()");
 	return true;
     }
 
     public boolean createProgramGraph(String path) {
-	Resource programGraph = new ResourceImpl();
-	String[] dirs = path.split("/");
-	String basePackage = null;
-	for (int i = 0; i < dirs.length; i++) {
-	    if ("src".equals(dirs[i])) {
-		basePackage = dirs[i+1];
-		break;
-	    }
+	System.out.println("createProgramGraph(" + path + ")");
+	if (jamoppRS == null) {
+	    jamoppRS = PARSE_DIRECTORY.invoke(path);
 	}
-	if (basePackage == null) {
-	    throw new RuntimeException("Can't figure out base-package from " + path);
-	}
+	programGraph = new ResourceImpl();
+	File dir = new File(path + File.separator + "src");
+	String basePackage = dir.listFiles()[0].getName();
+	System.out.println("Base-package is " + basePackage);
 	Object trace =
 	    JAMOPP_TO_PG.invoke(jamoppRS, programGraph, basePackage);
 	pgToJamoppMapAtom = PREPARE_PG_TO_JAMOPP_MAP.invoke(trace);
@@ -62,10 +68,12 @@ public class TestInterfaceImpl implements TestInterface {
     }
 
     public void setProgramLocation(String path) {
+	System.out.println("setProgramLocation(" + path + ")");
 	jamoppRS = PARSE_DIRECTORY.invoke(path);
     }
 
     public boolean applyPullUpMethod(Pull_Up_Refactoring pur) {
+	System.out.println("applyPullUpMethod(" + pur + ")");
 	IFn s = (IFn) REF_PULL_UP_METHOD
 	    .invoke(programGraph,
 		    pgToJamoppMapAtom,
@@ -91,6 +99,7 @@ public class TestInterfaceImpl implements TestInterface {
     public void setTmpPath(File path) {}
 
     public boolean synchronizeChanges() {
+	System.out.println("synchronizeChanges()");
 	for (IFn synchronizer : synchronizeFns) {
 	    synchronizer.invoke();
 	}

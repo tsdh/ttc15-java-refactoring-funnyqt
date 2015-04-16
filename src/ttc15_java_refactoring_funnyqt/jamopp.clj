@@ -19,6 +19,8 @@
 (defn ^:private set-up []
   (.put (EPackage$Registry/INSTANCE)
         "http://www.emftext.org/java" JavaPackage/eINSTANCE)
+  (doseq [^EPackage sub (.getESubpackages JavaPackage/eINSTANCE)]
+    (.put (EPackage$Registry/INSTANCE) (.getNsURI sub) sub))
   (.put (.getExtensionToFactoryMap Resource$Factory$Registry/INSTANCE)
         "java" (JavaSourceOrClassFileResourceFactoryImpl.))
   (.put (.getExtensionToFactoryMap Resource$Factory$Registry/INSTANCE)
@@ -41,23 +43,22 @@
     (.put (.getLoadOptions rs)
           IJavaOptions/DISABLE_LAYOUT_INFORMATION_RECORDING
           Boolean/TRUE)
-    (loop [fs (file-seq (io/file dir))]
-      (when (seq fs)
-        (let [^java.io.File f (first fs)]
-          (when (and (.isFile f)
-                     (re-matches #".*\.java$" (.getName f)))
-            (parse-file rs f))
-          (recur (rest fs)))))
+    (doseq [^java.io.File f (file-seq (io/file dir))
+            :when (and (.isFile f)
+                       (re-matches #".*\.java$" (.getName f)))]
+      (parse-file rs f))
+    #_(loop [fs (file-seq (io/file dir))]
+        (when (seq fs)
+          (let [^java.io.File f (first fs)]
+            (when (and (.isFile f)
+                       (re-matches #".*\.java$" (.getName f)))
+              (parse-file rs f))
+            (recur (rest fs)))))
     rs))
 
-(defn save-java-rs [^ResourceSet rs src-dir base-pkg]
+(defn save-java-rs [^ResourceSet rs]
   (doseq [^Resource r (.getResources rs)
           :let [uri (.getURI r)]
           :when (and (.isFile uri)
-                     (if base-pkg
-                       (re-matches (re-pattern (str "^" src-dir
-                                                    (str/replace base-pkg \. \/)
-                                                    "/.*\\.java$"))
-                                   (.path uri))
-                       true))]
+                     (= "java" (.fileExtension uri)))]
     (emf/save-resource r)))
