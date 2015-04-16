@@ -32,23 +32,6 @@
   (.getResource rs (URI/createFileURI (.getPath f)) true)
   (println "Done"))
 
-(defn ^:private resolve-all [^ResourceSet rs]
-  (print "Resolving... ")
-  (let [proxy-count (volatile! 0), unresolved (volatile! 0)]
-    (loop [objs (emf/eallcontents rs)]
-      (when (seq objs)
-        (let [^InternalEObject eo (first objs)]
-          (doseq [^EObject cr (.eCrossReferences eo)]
-            (when (.eIsProxy cr)
-              (vswap! proxy-count inc)
-              (let [^EObject cr (EcoreUtil/resolve cr rs)]
-                (when (.eIsProxy cr)
-                  (vswap! unresolved inc)))))
-          (recur (rest objs)))))
-    (println "Done")
-    (println (format "Out of %s proxies, %s couldn't be resolved."
-                     @proxy-count @unresolved))))
-
 (defn parse-directory [dir]
   (let [rs (ResourceSetImpl.)]
     ;; rs.getLoadOptions().put(IJavaOptions.DISABLE_LOCATION_MAP, Boolean.TRUE)
@@ -65,9 +48,6 @@
                      (re-matches #".*\.java$" (.getName f)))
             (parse-file rs f))
           (recur (rest fs)))))
-    ;; Seems like all proxies in the user classes are resolved automatically,
-    ;; so no need to try it again.
-    #_(resolve-all rs)
     rs))
 
 (defn save-java-rs [^ResourceSet rs src-dir base-pkg]

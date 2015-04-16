@@ -16,22 +16,16 @@ import ttc.testdsl.tTCTest.*;
 public class TestInterfaceImpl implements TestInterface {
     private static final IFn PARSE_DIRECTORY
 	= Clojure.var("ttc15-java-refactoring-funnyqt.jamopp/parse-directory");
-
     private static final IFn SAVE_JAVA_RESOURCE_SET
 	= Clojure.var("ttc15-java-refactoring-funnyqt.jamopp/save-java-rs");
-
     private static final IFn JAMOPP_TO_PG
 	= Clojure.var("ttc15-java-refactoring-funnyqt.jamopp2pg/jamopp2pg");
-
     private static final IFn PREPARE_PG_TO_JAMOPP_MAP
 	= Clojure.var("ttc15-java-refactoring-funnyqt.jamopp2pg/prepare-pg2jamopp-map");
-
     private static final IFn FIND_TCLASS
 	= Clojure.var("ttc15-java-refactoring-funnyqt.refactor/find-tclass");
-
     private static final IFn FIND_TMETHODSIGNATURE
 	= Clojure.var("ttc15-java-refactoring-funnyqt.refactor/find-tmethodsig");
-
     private static final IFn REF_PULL_UP_METHOD
 	= Clojure.var("ttc15-java-refactoring-funnyqt.refactor/pull-up-method");
 
@@ -39,8 +33,6 @@ public class TestInterfaceImpl implements TestInterface {
     private Resource programGraph;
     private Object pgToJamoppMapAtom;
     private ArrayList<IFn> synchronizeFns = new ArrayList<IFn>();
-
-    public TestInterfaceImpl() {}
 
     public String getPluginName() {
 	return "FunnyQT";
@@ -52,8 +44,19 @@ public class TestInterfaceImpl implements TestInterface {
 
     public boolean createProgramGraph(String path) {
 	Resource programGraph = new ResourceImpl();
+	String[] dirs = path.split("/");
+	String basePackage = null;
+	for (int i = 0; i < dirs.length; i++) {
+	    if ("src".equals(dirs[i])) {
+		basePackage = dirs[i+1];
+		break;
+	    }
+	}
+	if (basePackage == null) {
+	    throw new RuntimeException("Can't figure out base-package from " + path);
+	}
 	Object trace =
-	    JAMOPP_TO_PG.invoke(jamoppRS, programGraph, "base_package");
+	    JAMOPP_TO_PG.invoke(jamoppRS, programGraph, basePackage);
 	pgToJamoppMapAtom = PREPARE_PG_TO_JAMOPP_MAP.invoke(trace);
 	return true;
     }
@@ -68,8 +71,12 @@ public class TestInterfaceImpl implements TestInterface {
 		    pgToJamoppMapAtom,
 		    FIND_TCLASS.invoke(programGraph, pur.getParent()),
 		    FIND_TMETHODSIGNATURE.invoke(programGraph, pur.getMethod()));
-	synchronizeFns.add(s);
-	return true;
+	if (s == null) {
+	    return false;
+	} else {
+	    synchronizeFns.add(s);
+	    return true;
+	}
     }
 
     public boolean applyCreateSuperclass(Create_Superclass_Refactoring csr) {
@@ -88,6 +95,7 @@ public class TestInterfaceImpl implements TestInterface {
 	    synchronizer.invoke();
 	}
 	synchronizeFns.clear();
+	SAVE_JAVA_RESOURCE_SET.invoke(jamoppRS);
 	return true;
     }
 }
