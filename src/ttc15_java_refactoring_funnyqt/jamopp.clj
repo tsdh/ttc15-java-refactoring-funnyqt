@@ -47,13 +47,6 @@
             :when (and (.isFile f)
                        (re-matches #".*\.java$" (.getName f)))]
       (parse-file rs f))
-    #_(loop [fs (file-seq (io/file dir))]
-        (when (seq fs)
-          (let [^java.io.File f (first fs)]
-            (when (and (.isFile f)
-                       (re-matches #".*\.java$" (.getName f)))
-              (parse-file rs f))
-            (recur (rest fs)))))
     rs))
 
 (defn save-java-rs [^ResourceSet rs]
