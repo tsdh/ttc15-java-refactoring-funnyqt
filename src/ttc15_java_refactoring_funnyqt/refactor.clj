@@ -9,37 +9,19 @@
 
 ;;* Utils
 
-(defn find-tclass [pg ^Java_Class c]
-  (let [qn (if-let [pn (.getPackage c)]
-             (str pn "." (.getClass_name c))
-             (.getClass_name c))
-        tcs (filter #(= qn (eget-raw % :tName))
-                    (eallcontents pg 'TClass))]
-    (if (fnext tcs)
-      (errorf "Multiple TClasses with qualified name %s: %s"
-              qn tcs)
-      (if-let [tc (first tcs)]
-        tc
-        (errorf "No TClass with qualified name %s" qn)))))
+(defn find-tclass [pg qn]
+  (first (filter #(= qn (eget-raw % :tName))
+                 (eallcontents pg 'TClass))))
 
-(defn find-tmethodsig [pg ^Java_Method m]
-  (let [method-name (.getMethod_name m)
-        params (.getParams m)
-        pclasses (mapv (partial find-tclass pg) params)
-        tmss (filter (fn [tms]
-                       (and (-> tms
-                                (eget-raw :method)
-                                (eget-raw :tName)
-                                (= method-name))
-                            (= pclasses (eget-raw tms :paramList))))
-                     (eallcontents pg 'TMethodSignature))]
-    (if (fnext tmss)
-      (errorf "Multiple TMethodSignatures for %s(%s)"
-              method-name (join ", " (map #(eget-raw % :tName) pclasses)))
-      (if-let [tms (first tmss)]
-        tms
-        (errorf "No TMethodsignature %s(%s)"
-                method-name (join ", " (map #(eget-raw % :tName) pclasses)))))))
+(defn find-tmethodsig [pg method-name param-qns]
+  (let [pclasses (mapv (partial find-tclass pg) param-qns)]
+    (first (filter (fn [tms]
+                     (and (-> tms
+                              (eget-raw :method)
+                              (eget-raw :tName)
+                              (= method-name))
+                          (= pclasses (eget-raw tms :paramList))))
+                   (eallcontents pg 'TMethodSignature)))))
 
 ;;* Task 2: Refactoring on the Program Graph
 

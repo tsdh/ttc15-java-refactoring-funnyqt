@@ -17,16 +17,17 @@
    (org.emftext.language.java.resource.java IJavaOptions)))
 
 (defn ^:private set-up []
-  (.put (EPackage$Registry/INSTANCE)
-        "http://www.emftext.org/java" JavaPackage/eINSTANCE)
-  (doseq [^EPackage sub (.getESubpackages JavaPackage/eINSTANCE)]
-    (.put (EPackage$Registry/INSTANCE) (.getNsURI sub) sub))
+  #_(.put (EPackage$Registry/INSTANCE)
+          "http://www.emftext.org/java" JavaPackage/eINSTANCE)
+  #_(doseq [^EPackage sub (.getESubpackages JavaPackage/eINSTANCE)]
+      (.put (EPackage$Registry/INSTANCE) (.getNsURI sub) sub))
   (.put (.getExtensionToFactoryMap Resource$Factory$Registry/INSTANCE)
         "java" (JavaSourceOrClassFileResourceFactoryImpl.))
   (.put (.getExtensionToFactoryMap Resource$Factory$Registry/INSTANCE)
         Resource$Factory$Registry/DEFAULT_EXTENSION
         (XMIResourceFactoryImpl.)))
 
+JavaPackage/eINSTANCE
 (set-up)
 
 (defn ^:private parse-file [^ResourceSet rs ^java.io.File f]
