@@ -4,7 +4,7 @@
   :license {:name "GNU General Public License, Version 3 (or later)"
             :url "http://www.gnu.org/licenses/gpl.html"
             :distribution :repo}
-  :dependencies [[funnyqt "0.45.25"]
+  :dependencies [[funnyqt "0.46.2"]
                  [org.emftext.language/org.emftext.language.java "1.4.1-SNAPSHOT"
                   :exclusions [org.eclipse.emf/org.eclipse.emf.ecore
                                org.eclipse.emf/org.eclipse.emf.ecore.change]]
