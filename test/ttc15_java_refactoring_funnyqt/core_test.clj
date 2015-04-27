@@ -10,14 +10,6 @@
    (org.eclipse.emf.ecore.resource Resource ResourceSet)
    (org.eclipse.emf.common.util URI)))
 
-(deftest test-jamopp2pg
-  (doseq [^java.io.File dir (.listFiles (clojure.java.io/file "test-src"))]
-    (println "Testing with package" (.getName dir) "...")
-    (let [jamopp (jamopp/parse-directory (.getPath dir))
-          pg (emf/new-resource)
-          mappings (jamopp2pg jamopp pg (.getName dir))]
-      (println "Worked!"))))
-
 (defn print-jamopp-resource [^ResourceSet rs res-name]
   (if-let [r (.getResource rs (URI/createFileURI res-name) true)]
     (viz/print-model r :gtk)
