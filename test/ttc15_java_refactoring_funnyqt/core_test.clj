@@ -26,9 +26,11 @@
                        (u/error "TMethodSignature not found"))
         thunk (pull-up-method pg mappings-atom tclass tmethodsig)]
     #_(viz/print-model pg :gtk)
-    ;; The ruse must have been applicable
+    ;; The rule must have been applicable
     (is thunk)
     ;; Executing the thunk must work
     (thunk)
     ;; We don't save the resource set in order not to change test-src/
     ))
+
+
