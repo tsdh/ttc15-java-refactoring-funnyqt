@@ -61,8 +61,13 @@ public class TestInterfaceImpl implements TestInterface {
     public boolean createProgramGraph(String path) {
 	System.out.println("createProgramGraph(" + path + ")");
 	try {
-	    File tmpPath = new File(path);
-	    String targetPath = "/home/horn/tmp/" + tmpPath.getName();
+	    File copyFolder = new File("/home/horn/tmp/JR/");
+	    if (copyFolder.exists() && copyFolder.isDirectory()) {
+		System.out.println("Deleting folder " + copyFolder.getPath());
+		copyFolder.delete();
+	    }
+	    copyFolder.mkdir();
+	    String targetPath = copyFolder.getAbsolutePath() + File.separator + new File(path).getName();
 	    System.out.println("Copying program to " + targetPath);
 	    Process p = Runtime.getRuntime().exec("cp -R " + path + " " + targetPath);
 	    p.waitFor();
@@ -91,7 +96,12 @@ public class TestInterfaceImpl implements TestInterface {
 	EList<Java_Class> javaClasses = pur.getMethod().getParams();
 	List<String> tMethodParamQNs = new ArrayList<String>();
 	for (Java_Class c : javaClasses) {
-	    tMethodParamQNs.add(c.getPackage() + "." + c.getClass_name());
+	    String pkg = c.getPackage();
+	    if (pkg != null) {
+		tMethodParamQNs.add( pkg + "." + c.getClass_name());
+	    } else {
+		tMethodParamQNs.add(c.getClass_name());
+	    }
 	}
 	System.out.println("applyPullUpMethod(" + tClassQN + ", " + tMethodName + ")");
 
@@ -102,7 +112,7 @@ public class TestInterfaceImpl implements TestInterface {
 	}
 	Object tMethodSig = FIND_TMETHODSIGNATURE.invoke(programGraph, tMethodName, tMethodParamQNs);
 	if (tMethodSig == null) {
-	    System.out.print("No such TMethodSignature " + tMethodName);
+	    System.out.print("No such TMethodSignature " + tMethodName + "(");
 	    boolean first = true;
 	    for (String p :tMethodParamQNs) {
 		if (first) {
@@ -112,7 +122,7 @@ public class TestInterfaceImpl implements TestInterface {
 		}
 		System.out.print(p);
 	    }
-	    System.out.println();
+	    System.out.println(")");
 	    return false;
 	}
 	IFn s = (IFn) REF_PULL_UP_METHOD.invoke(programGraph, pgToJamoppMapAtom, tClass, tMethodSig);
@@ -138,12 +148,18 @@ public class TestInterfaceImpl implements TestInterface {
     public void setTmpPath(File path) {}
 
     public boolean synchronizeChanges() {
-	System.out.println("synchronizeChanges()");
-	for (IFn synchronizer : synchronizeFns) {
-	    synchronizer.invoke();
+	try {
+	    System.out.println("synchronizeChanges()");
+	    for (IFn synchronizer : synchronizeFns) {
+		synchronizer.invoke();
+	    }
+	    SAVE_JAVA_RESOURCE_SET.invoke(jamoppRS);
+	    return true;
+	} catch (Exception e) {
+	    e.printStackTrace();
+	    return false;
+	} finally {
+	    synchronizeFns.clear();
 	}
-	synchronizeFns.clear();
-	SAVE_JAVA_RESOURCE_SET.invoke(jamoppRS);
-	return true;
     }
 }

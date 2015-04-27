@@ -116,8 +116,7 @@
   (field2tfielddef
    :from [f 'Field]
    :when (not (static? f))
-   :to   [tfd 'TFieldDefinition]
-   (eset! tfd :signature (get-tfieldsig f)))
+   :to   [tfd 'TFieldDefinition {:signature (get-tfieldsig f)}])
   (get-tmethod
    :from [m 'ClassMethod]
    :id   [name (eget m :name)]
@@ -135,8 +134,9 @@
   (method2tmethoddef
    :from [m 'ClassMethod]
    :when (not (static? m))
-   :to   [tmd 'TMethodDefinition {:returnType (type2tclass (get-type m))}]
-   (eset! tmd :signature (get-tmethodsig m))))
+   :to   [tmd 'TMethodDefinition {:returnType (type2tclass (get-type m))
+                                  :signature (get-tmethodsig m)}]
+   (eadd! (class2tclass (econtainer m)) :defines tmd)))
 
 (defn prepare-pg2jamopp-map [trace]
   (into {} (comp (map #(% trace))

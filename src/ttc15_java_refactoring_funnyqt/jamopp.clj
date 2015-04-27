@@ -17,10 +17,6 @@
    (org.emftext.language.java.resource.java IJavaOptions)))
 
 (defn ^:private set-up []
-  #_(.put (EPackage$Registry/INSTANCE)
-          "http://www.emftext.org/java" JavaPackage/eINSTANCE)
-  #_(doseq [^EPackage sub (.getESubpackages JavaPackage/eINSTANCE)]
-      (.put (EPackage$Registry/INSTANCE) (.getNsURI sub) sub))
   (.put (.getExtensionToFactoryMap Resource$Factory$Registry/INSTANCE)
         "java" (JavaSourceOrClassFileResourceFactoryImpl.))
   (.put (.getExtensionToFactoryMap Resource$Factory$Registry/INSTANCE)

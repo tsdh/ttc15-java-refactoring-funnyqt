@@ -33,9 +33,10 @@
 
 (defn ^:private accessible-from? [cls m-or-f]
   (let [defining-cls (econtainer m-or-f)]
-    (or (= defining-cls cls)
-        (superclass? defining-cls cls)
-        (and (has-type? m-or-f 'TMethodDefinition)
+    (or (= defining-cls cls)                 ;; own members
+        (superclass? defining-cls cls)       ;; inherited members
+        (not (superclass? cls defining-cls)) ;; unrelated classes
+        (and (has-type? m-or-f 'TMethodDefinition) ;; subclass-method but with override
              (member? (eget-raw m-or-f :signature)
                       (eget-raw cls :signature))
              (superclass? cls defining-cls)))))
@@ -52,17 +53,15 @@
    ;; Really all subclasses define a method with sig
    :when (= (count (eget super :childClasses))
             (inc (count others)))
-   :let [all-mds (map :omd others)]
+   :let [all-mds (conj (map :omd others) md)]
    ;; All accesses from all method-defs must be accessible already from the
    ;; superclass.
    :when (forall? (partial accessible-from? super)
                   (mapcat #(eget % :access) all-mds))]
-  (println "pulling up" (-> sig (eget :method) (eget :tName))
-           "from" (eget sub :tName) "to" (eget super :tName))
+  (println "Pulling up" (-> sig (eget :method) (eget :tName)) "to" (eget super :tName))
   ;; Delete the other method defs
   (doseq [o others]
-    (edelete! (:omd o))
-    (edelete! (@pg2jamopp-map-atom (:omd o))))
+    (edelete! (:omd o)))
   ;; Add it to the super class
   (eadd! super :defines md)
   (eadd! super :signature sig)

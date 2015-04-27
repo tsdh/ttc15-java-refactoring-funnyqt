@@ -2,6 +2,7 @@
   (:require [clojure.test :refer :all]
             [funnyqt.visualization :as viz]
             [funnyqt.emf :as emf]
+            [funnyqt.utils :as u]
             [ttc15-java-refactoring-funnyqt.jamopp2pg :refer :all]
             [ttc15-java-refactoring-funnyqt.jamopp    :as jamopp]
             [ttc15-java-refactoring-funnyqt.refactor  :refer :all])
@@ -9,27 +10,33 @@
    (org.eclipse.emf.ecore.resource Resource ResourceSet)
    (org.eclipse.emf.common.util URI)))
 
-(def test1-jamopp (jamopp/parse-directory "test-src/test1/"))
-(def test2-jamopp (jamopp/parse-directory "test-src/test2/"))
-(def test3-jamopp (jamopp/parse-directory "test-src/test3/"))
-(def test4-jamopp (jamopp/parse-directory "test-src/test4/"))
-(def test5-jamopp (jamopp/parse-directory "test-src/test5/"))
-
 (deftest test-jamopp2pg
   (doseq [^java.io.File dir (.listFiles (clojure.java.io/file "test-src"))]
     (println "Testing with package" (.getName dir) "...")
     (let [jamopp (jamopp/parse-directory (.getPath dir))
           pg (emf/new-resource)
-          mappings(jamopp2pg jamopp pg (.getName dir))]
+          mappings (jamopp2pg jamopp pg (.getName dir))]
       (println "Worked!"))))
 
 (defn print-jamopp-resource [^ResourceSet rs res-name]
   (if-let [r (.getResource rs (URI/createFileURI res-name) true)]
-    (viz/print-model r :gtk)))
+    (viz/print-model r :gtk)
+    (println "No such resource" res-name)))
 
-(defn print-result-pg [rs base-pkg]
-  (let [result (emf/new-resource)]
-    (jamopp2pg rs result base-pkg)
-    (println "The result has" (count (emf/eallcontents result)) "elements and"
-             (count (emf/epairs result)) "references.")
-    (viz/print-model result :gtk)))
+(deftest test-pum-paper-example01
+  (println "Test PUM: paper-example01")
+  (let [jamopp (jamopp/parse-directory "test-src/paper-example01/src")
+        pg (emf/new-resource)
+        mappings (atom (prepare-pg2jamopp-map (jamopp2pg jamopp pg "example01")))
+        tclass (or (find-tclass pg "example01.ParentClass")
+                   (u/error "TClass not found"))
+        tmethodsig (or (find-tmethodsig pg "method" ["java.lang.String" "int"])
+                       (u/error "TMethodSignature not found"))
+        thunk (pull-up-method pg mappings tclass tmethodsig)]
+    #_(viz/print-model pg :gtk)
+    ;; The ruse must have been applicable
+    (is thunk)
+    ;; Executing the thunk must work
+    (thunk)
+    ;; We don't save the resource set in order not to change test-src/
+    ))
