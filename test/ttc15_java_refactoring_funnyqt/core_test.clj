@@ -19,12 +19,12 @@
   (println "Test PUM: paper-example01")
   (let [jamopp (jamopp/parse-directory "test-src/paper-example01/src")
         pg (emf/new-resource)
-        mappings (atom (prepare-pg2jamopp-map (jamopp2pg jamopp pg "example01")))
+        mappings-atom (prepare-pg2jamopp-map (jamopp2pg jamopp pg "example01"))
         tclass (or (find-tclass pg "example01.ParentClass")
                    (u/error "TClass not found"))
         tmethodsig (or (find-tmethodsig pg "method" ["java.lang.String" "int"])
                        (u/error "TMethodSignature not found"))
-        thunk (pull-up-method pg mappings tclass tmethodsig)]
+        thunk (pull-up-method pg mappings-atom tclass tmethodsig)]
     #_(viz/print-model pg :gtk)
     ;; The ruse must have been applicable
     (is thunk)

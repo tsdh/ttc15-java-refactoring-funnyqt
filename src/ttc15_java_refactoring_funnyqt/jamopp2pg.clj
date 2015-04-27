@@ -139,6 +139,6 @@
    (eadd! (class2tclass (econtainer m)) :defines tmd)))
 
 (defn prepare-pg2jamopp-map [trace]
-  (into {} (comp (map #(% trace))
-                 (map set/map-invert))
-        [:class2tclass :field2tfielddef :method2tmethoddef]))
+  (atom (into {} (comp (map #(% trace))
+                       (map set/map-invert))
+              [:class2tclass :field2tfielddef :method2tmethoddef])))
