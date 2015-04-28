@@ -1,5 +1,5 @@
 (ns ttc15-java-refactoring-funnyqt.refactor
-  (:require [clojure.string   :refer [join]]
+  (:require [clojure.string   :as    str]
             [funnyqt.emf      :refer :all]
             [funnyqt.query    :refer [member? forall? the]]
             [funnyqt.generic  :refer [has-type?]]
@@ -65,8 +65,44 @@
   ;; Add it to the super class
   (eadd! super :defines md)
   (eadd! super :signature sig)
-  (fn []
+  (fn [_]
     (doseq [o others]
       (edelete! (@pg2jamopp-map-atom (:omd o)))
       (swap! pg2jamopp-map-atom dissoc (:omd o)))
     (eadd! (@pg2jamopp-map-atom super) :members (@pg2jamopp-map-atom md))))
+
+(defn make-type-reference [target-class]
+  (ecreate! nil 'ClassifierReference
+            {:target target-class})
+  #_(ecreate! nil 'NamespaceClassifierReference
+              {:classifierReferences [(ecreate! nil 'ClassifierReference
+                                                {:target target-class})]}))
+
+(defn create-superclass [pg pg2jamopp-map-atom classes new-superclass-qn]
+  (let [scs (into #{} (map #(eget-raw % :parentClass)) classes)]
+    (when (and (= 1 (count scs))
+               (not (find-tclass pg new-superclass-qn)))
+      (println "Creating new superclass" new-superclass-qn
+               (if (first scs)
+                 (str "with parent" (eget (first scs) :tName))
+                 "with no parent"))
+      (let [new-tclass (ecreate! pg 'TClass {:tName new-superclass-qn
+                                             :childClasses classes
+                                             :parentClass (first scs)})]
+        (fn [rs]
+          (let [[pkgs class-name] (let [parts (str/split new-superclass-qn #"\.")]
+                                    [(butlast parts) (last parts)])
+                new-cu-name (str new-superclass-qn ".java")
+                other-res-name (-> rs .getResources first .getURI .toFileString)
+                new-r-name (str/replace other-res-name #"[A-Za-z0-9]+\.java$"
+                                        (str class-name ".java"))
+                r (new-resource rs new-r-name)
+                nc (ecreate! nil 'Class {:name class-name})
+                cu (ecreate! r 'CompilationUnit {:name new-cu-name
+                                                 :namespaces  pkgs
+                                                 :classifiers [nc]})]
+            (doseq [c classes]
+              (eset! (@pg2jamopp-map-atom c) :extends (make-type-reference nc)))
+            (when-let [parent (first scs)]
+              (eset! nc :extends (make-type-reference (@pg2jamopp-map-atom parent))))
+            (swap! pg2jamopp-map-atom assoc new-tclass nc)))))))

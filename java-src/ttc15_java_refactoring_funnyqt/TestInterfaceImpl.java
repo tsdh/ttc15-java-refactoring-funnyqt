@@ -42,11 +42,14 @@ public class TestInterfaceImpl implements TestInterface {
     private static final IFn FIND_TCLASS = Clojure.var(NS_REFACTOR, "find-tclass");
     private static final IFn FIND_TMETHODSIGNATURE = Clojure.var(NS_REFACTOR, "find-tmethodsig");
     private static final IFn REF_PULL_UP_METHOD = Clojure.var(NS_REFACTOR, "pull-up-method");
+    private static final IFn REF_CREATE_SUPERCLASS = Clojure.var(NS_REFACTOR, "create-superclass");
 
     private Object jamoppRS;
     private Resource programGraph;
     private Object pgToJamoppMapAtom;
     private ArrayList<IFn> synchronizeFns = new ArrayList<IFn>();
+    private String programPath;
+    private String testName;
 
     public String getPluginName() {
 	System.out.println("getPluginName()");
@@ -58,22 +61,28 @@ public class TestInterfaceImpl implements TestInterface {
 	return true;
     }
 
-    public boolean createProgramGraph(String path) {
-	System.out.println("createProgramGraph(" + path + ")");
+    public void copyDir(String from, String baseDir, String subDir) {
 	try {
-	    File copyFolder = new File("/home/horn/tmp/JR/");
+	    File bd = new File(baseDir);
+	    if (!bd.exists()) {
+		bd.mkdir();
+	    }
+	    File copyFolder = new File(baseDir, subDir);
 	    if (copyFolder.exists() && copyFolder.isDirectory()) {
 		System.out.println("Deleting folder " + copyFolder.getPath());
 		copyFolder.delete();
 	    }
 	    copyFolder.mkdir();
-	    String targetPath = copyFolder.getAbsolutePath() + File.separator + new File(path).getName();
-	    System.out.println("Copying program to " + targetPath);
-	    Process p = Runtime.getRuntime().exec("cp -R " + path + " " + targetPath);
+	    System.out.println("Copying " + from + " to " + copyFolder.getPath());
+	    Process p = Runtime.getRuntime().exec("cp -R " + from + " " + copyFolder.getPath());
 	    p.waitFor();
 	} catch (Exception e) {
 	    e.printStackTrace();
 	}
+    }
+    public boolean createProgramGraph(String path) {
+	programPath = path;
+	System.out.println("createProgramGraph(" + path + ")");
 	jamoppRS = PARSE_DIRECTORY.invoke(path);
 	programGraph = new ResourceImpl();
 	File dir = new File(path + File.separator + "src");
@@ -91,6 +100,7 @@ public class TestInterfaceImpl implements TestInterface {
     }
 
     public boolean applyPullUpMethod(Pull_Up_Refactoring pur) {
+	testName = pur.getName();
 	String tClassQN = pur.getParent().getPackage() + "." + pur.getParent().getClass_name();
 	String tMethodName = pur.getMethod().getMethod_name();
 	EList<Java_Class> javaClasses = pur.getMethod().getParams();
@@ -127,18 +137,43 @@ public class TestInterfaceImpl implements TestInterface {
 	}
 	IFn s = (IFn) REF_PULL_UP_METHOD.invoke(programGraph, pgToJamoppMapAtom, tClass, tMethodSig);
 	if (s == null) {
-	    System.out.println("The rule didn't match!");
+	    System.out.println("The pull-up-method rule didn't match!");
 	    return false;
 	} else {
-	    System.out.println("The rule did match!");
+	    System.out.println("The pull-up-method rule did match!");
 	    synchronizeFns.add(s);
 	    return true;
 	}
     }
 
     public boolean applyCreateSuperclass(Create_Superclass_Refactoring csr) {
-	// TODO: Implement me!
-	return false;
+	testName = csr.getName();
+	List<Object> classes = new ArrayList<Object>();
+	System.out.print("applyCreateSuperClass([");
+	boolean first = true;
+	for (Java_Class c :csr.getChild().getClasses()) {
+	    classes.add(FIND_TCLASS.invoke(programGraph, c.getPackage()
+					   + "." + c.getClass_name()));
+	    if (first) {
+		first = false;
+	    } else {
+		System.out.print(", ");
+	    }
+	    System.out.print(c.getPackage() + "." + c.getClass_name());
+	}
+	System.out.println("], " + csr.getTarget().getPackage() + "."
+			   + csr.getTarget().getClass_name() + ")");
+	IFn s = (IFn) REF_CREATE_SUPERCLASS.invoke(programGraph, pgToJamoppMapAtom, classes,
+						   csr.getTarget().getPackage() + "."
+						   + csr.getTarget().getClass_name());
+	if (s == null) {
+	    System.out.println("The create-superclass rule didn't match!");
+	    return false;
+	} else {
+	    System.out.println("The create-superclass rule did match!");
+	    synchronizeFns.add(s);
+	    return true;
+	}
     }
 
     public void setPermanentStoragePath(File path) {}
@@ -149,11 +184,14 @@ public class TestInterfaceImpl implements TestInterface {
 
     public boolean synchronizeChanges() {
 	try {
-	    System.out.println("synchronizeChanges()");
+	    copyDir(programPath, "/home/horn/tmp/JR/", testName + "-before/");
+	    System.out.println("synchronizeChanges(): "
+			       + synchronizeFns.size() + " changes to be applied");
 	    for (IFn synchronizer : synchronizeFns) {
-		synchronizer.invoke();
+		synchronizer.invoke(jamoppRS);
 	    }
 	    SAVE_JAVA_RESOURCE_SET.invoke(jamoppRS);
+	    copyDir(programPath, "/home/horn/tmp/JR/", testName + "-after/");
 	    return true;
 	} catch (Exception e) {
 	    e.printStackTrace();
