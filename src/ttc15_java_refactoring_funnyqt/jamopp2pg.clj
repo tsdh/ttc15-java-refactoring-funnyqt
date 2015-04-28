@@ -5,7 +5,8 @@
             [funnyqt.query       :refer [p-seq p-* p-alt p-restr p-apply member?]]
             [funnyqt.query.emf   :refer [<>--]]
             [funnyqt.generic     :refer [type-case type-matcher]]
-            [funnyqt.model2model :refer [deftransformation]])
+            [funnyqt.model2model :refer [deftransformation]]
+            [funnyqt.utils       :refer [mapc]])
   (:import (org.emftext.language.java.classifiers
             ConcreteClassifier)
            (org.emftext.language.java.types
@@ -15,27 +16,25 @@
 
 ;;* Task 1: JaMoPP to Program Graph
 
-(def ^:private ^:dynamic *tg* nil)
+(def ^:dynamic *tg* nil)
 
-(defn ^:private static? [x]
+(defn static? [x]
   (seq (filter (type-matcher x 'Static)
                (eget x :annotationsAndModifiers))))
 
-(defn ^:private get-ref-target [^TypeReference ref]
+(defn ref-target [^TypeReference ref]
   (.getTarget ref))
 
-(defn ^:private get-type [typed-element]
+(defn get-type [typed-element]
   (if-let [tr (eget typed-element :typeReference)]
-    (get-ref-target tr)
+    (ref-target tr)
     (funnyqt.utils/errorf "%s has no typeReference!" typed-element)))
 
-(defn ^:private overridden-or-hidden-def [def sig]
-  (when-let [tc (econtainer def)]
-    (loop [super (eget tc :parentClass)]
-      (when super
-        (or (first (filter #(= sig (eget % :signature))
-                           (eget super :defines)))
-            (recur (eget super :parentClass)))))))
+(defn type-name [t]
+  (type-case t
+    ConcreteClassifier (.getQualifiedName ^ConcreteClassifier t)
+    NamedElement       (eget t :name)
+    PrimitiveType      (str/lower-case (str/replace (.getSimpleName (class t)) "Impl" ""))))
 
 (deftransformation jamopp2pg [[jamopp] [pg] base-pkg]
   (user-defined?
@@ -44,39 +43,13 @@
   (main
    []
    (binding [*tg* (ecreate! pg 'TypeGraph)]
-     (doseq [c (filter user-defined?
-                       (eallcontents jamopp 'Class))]
-       (class2tclass c))
-     ;; overloaded methods/hidden fields
-     (doseq [tmsig (eallcontents pg 'TSignature)
-             tmdef (eget tmsig :definitions)]
-       (when-let [stmdef (overridden-or-hidden-def tmdef tmsig)]
-         (eset! tmdef (type-case tmdef
-                        TMethodDefinition :overriding
-                        TFieldDefinition  :hiding)
-                stmdef)))))
-  (type-name
-   [t]
-   (type-case t
-     ConcreteClassifier (.getQualifiedName ^ConcreteClassifier t)
-     NamedElement       (eget t :name)
-     PrimitiveType      (str/lower-case (str/replace (.getSimpleName (class t))
-                                                     "Impl" ""))))
+     (mapc class2tclass (filter user-defined? (eallcontents jamopp 'Class)))))
   (type2tclass
    :from [t 'Type]
    :disjuncts [class2tclass primitive2tclass])
   (member2tmemberdef
    :from [m 'Member]
    :disjuncts [field2tfielddef method2tmethoddef])
-  (member-accesses
-   [m]
-   (map member2tmemberdef
-        (p-apply m [p-seq
-                    [p-alt :statements :initialValue]
-                    [p-* <>--]
-                    :target
-                    [p-restr [:or 'Field 'ClassMethod]
-                     (complement static?)]])))
   (class2tclass
    :from [c 'Class]
    :to [tc 'TClass]
@@ -84,7 +57,7 @@
    (eset! tc :tName (type-name c))
    (when (user-defined? c)
      (when-let [super-ref (eget c :extends)]
-       (eset! tc :parentClass (class2tclass (get-ref-target super-ref))))
+       (eset! tc :parentClass (class2tclass (ref-target super-ref))))
      (let [fields (remove static? (filter (type-matcher jamopp 'Field)
                                           (eget c :members)))
            tfields (map #(field2tfielddef %) fields)
@@ -97,7 +70,13 @@
                                        (map #(eget % :signature)
                                             tmethods)))
        (doseq [m (concat fields methods)]
-         (eset! (member2tmemberdef m) :access (member-accesses m))))))
+         (eset! (member2tmemberdef m)
+                :access (map member2tmemberdef
+                             (p-apply m [p-seq
+                                         [p-alt :statements :initialValue]
+                                         [p-* <>--] :target
+                                         [p-restr [:or 'Field 'ClassMethod]
+                                          (complement static?)]])))))))
   (primitive2tclass
    :from [pt 'PrimitiveType]
    :id   [name (type-name pt)]

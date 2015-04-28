@@ -5,7 +5,8 @@
             [funnyqt.generic  :refer [has-type?]]
             [funnyqt.in-place :refer :all]
             [funnyqt.utils    :refer [errorf]])
-  (:import (ttc.testdsl.tTCTest Java_Class Java_Method)))
+  (:import (ttc.testdsl.tTCTest Java_Class Java_Method)
+           (org.eclipse.emf.ecore.resource Resource ResourceSet)))
 
 ;;* Utils
 
@@ -72,11 +73,7 @@
     (eadd! (@pg2jamopp-map-atom super) :members (@pg2jamopp-map-atom md))))
 
 (defn make-type-reference [target-class]
-  (ecreate! nil 'ClassifierReference
-            {:target target-class})
-  #_(ecreate! nil 'NamespaceClassifierReference
-              {:classifierReferences [(ecreate! nil 'ClassifierReference
-                                                {:target target-class})]}))
+  (ecreate! nil 'ClassifierReference {:target target-class}))
 
 (defn create-superclass [pg pg2jamopp-map-atom classes new-superclass-qn]
   (let [scs (into #{} (map #(eget-raw % :parentClass)) classes)]
@@ -89,16 +86,13 @@
       (let [new-tclass (ecreate! pg 'TClass {:tName new-superclass-qn
                                              :childClasses classes
                                              :parentClass (first scs)})]
-        (fn [rs]
+        (fn [^ResourceSet rs]
           (let [[pkgs class-name] (let [parts (str/split new-superclass-qn #"\.")]
                                     [(butlast parts) (last parts)])
-                new-cu-name (str new-superclass-qn ".java")
-                other-res-name (-> rs .getResources first .getURI .toFileString)
-                new-r-name (str/replace other-res-name #"[A-Za-z0-9]+\.java$"
-                                        (str class-name ".java"))
-                r (new-resource rs new-r-name)
+                r (new-resource rs (str/replace (.toFileString (.getURI ^Resource (.get (.getResources rs) 0)))
+                                                #"[A-Za-z0-9]+\.java$" (str class-name ".java")))
                 nc (ecreate! nil 'Class {:name class-name})
-                cu (ecreate! r 'CompilationUnit {:name new-cu-name
+                cu (ecreate! r 'CompilationUnit {:name (str new-superclass-qn ".java")
                                                  :namespaces  pkgs
                                                  :classifiers [nc]})]
             (doseq [c classes]
