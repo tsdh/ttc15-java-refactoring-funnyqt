@@ -184,14 +184,14 @@ public class TestInterfaceImpl implements TestInterface {
 
     public boolean synchronizeChanges() {
 	try {
-	    copyDir(programPath, "/home/horn/tmp/JR/", testName + "-before/");
+	    //copyDir(programPath, "/home/horn/tmp/JR/", testName + "-before/");
 	    System.out.println("synchronizeChanges(): "
 			       + synchronizeFns.size() + " changes to be applied");
 	    for (IFn synchronizer : synchronizeFns) {
 		synchronizer.invoke(jamoppRS);
 	    }
 	    SAVE_JAVA_RESOURCE_SET.invoke(jamoppRS);
-	    copyDir(programPath, "/home/horn/tmp/JR/", testName + "-after/");
+	    //copyDir(programPath, "/home/horn/tmp/JR/", testName + "-after/");
 	    return true;
 	} catch (Exception e) {
 	    e.printStackTrace();
