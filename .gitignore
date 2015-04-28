@@ -8,3 +8,12 @@ pom.xml.asc
 /.nrepl-port
 .hgignore
 .hg/
+doc/_minted-ttc-java-refactoring/
+doc/auto/
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.pag
+*.synctex.gz
