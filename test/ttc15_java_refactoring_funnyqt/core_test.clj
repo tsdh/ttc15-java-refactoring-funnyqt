@@ -19,7 +19,7 @@
   (println "Test PUM: paper-example01")
   (let [jamopp (jamopp/parse-directory "test-src/paper-example01/src")
         pg (emf/new-resource)
-        mappings-atom (prepare-pg2jamopp-map (jamopp2pg jamopp pg "example01"))
+        mappings-atom (prepare-pg2jamopp-map (jamopp2pg jamopp pg))
         tclass (or (find-tclass pg "example01.ParentClass")
                    (u/error "TClass not found"))
         tmethodsig (or (find-tmethodsig pg "method" ["java.lang.String" "int"])
@@ -29,7 +29,7 @@
     ;; The rule must have been applicable
     (is thunk)
     ;; Executing the thunk must work
-    (thunk)
+    (thunk jamopp)
     ;; We don't save the resource set in order not to change test-src/
     ))
 

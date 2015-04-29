@@ -85,11 +85,7 @@ public class TestInterfaceImpl implements TestInterface {
 	System.out.println("createProgramGraph(" + path + ")");
 	jamoppRS = PARSE_DIRECTORY.invoke(path);
 	programGraph = new ResourceImpl();
-	File dir = new File(path + File.separator + "src");
-	String basePackage = dir.listFiles()[0].getName();
-	System.out.println("Base-package is " + basePackage);
-	Object trace =
-	    JAMOPP_TO_PG.invoke(jamoppRS, programGraph, basePackage);
+	Object trace = JAMOPP_TO_PG.invoke(jamoppRS, programGraph);
 	pgToJamoppMapAtom = PREPARE_PG_TO_JAMOPP_MAP.invoke(trace);
 	return true;
     }

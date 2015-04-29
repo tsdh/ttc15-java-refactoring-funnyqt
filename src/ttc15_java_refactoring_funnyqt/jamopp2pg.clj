@@ -36,10 +36,10 @@
     NamedElement       (eget t :name)
     PrimitiveType      (str/lower-case (str/replace (.getSimpleName (class t)) "Impl" ""))))
 
-(deftransformation jamopp2pg [[jamopp] [pg] base-pkg]
-  (user-defined?
-   [^ConcreteClassifier cc]
-   (.startsWith (.getQualifiedName cc) base-pkg))
+(defn user-defined? [^ConcreteClassifier cc]
+  (-> cc eresource .getURI .isFile))
+
+(deftransformation jamopp2pg [[jamopp] [pg]]
   (main
    []
    (binding [*tg* (ecreate! pg 'TypeGraph)]
