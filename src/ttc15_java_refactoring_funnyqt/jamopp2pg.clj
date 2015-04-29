@@ -6,7 +6,9 @@
             [funnyqt.query.emf   :refer [<>--]]
             [funnyqt.generic     :refer [type-case type-matcher]]
             [funnyqt.model2model :refer [deftransformation]]
-            [funnyqt.utils       :refer [mapc]])
+            [funnyqt.utils       :refer [mapc]]
+            [ttc15-java-refactoring-funnyqt.mm.java :as j]
+            [ttc15-java-refactoring-funnyqt.mm.pg   :as pg])
   (:import (org.emftext.language.java.classifiers
             ConcreteClassifier)
            (org.emftext.language.java.types
@@ -19,31 +21,30 @@
 (def ^:dynamic *tg* nil)
 
 (defn static? [x]
-  (seq (filter (type-matcher x 'Static)
-               (eget x :annotationsAndModifiers))))
+  (seq (filter j/isa-Static? (j/->annotationsAndModifiers x))))
 
 (defn ref-target [^TypeReference ref]
   (.getTarget ref))
 
 (defn get-type [typed-element]
-  (if-let [tr (eget typed-element :typeReference)]
+  (if-let [tr (j/->typeReference typed-element)]
     (ref-target tr)
     (funnyqt.utils/errorf "%s has no typeReference!" typed-element)))
 
 (defn type-name [t]
   (type-case t
     ConcreteClassifier (.getQualifiedName ^ConcreteClassifier t)
-    NamedElement       (eget t :name)
+    NamedElement       (j/name t)
     PrimitiveType      (str/lower-case (str/replace (.getSimpleName (class t)) "Impl" ""))))
 
-(defn user-defined? [^ConcreteClassifier cc]
+(defn user-defined? [cc]
   (-> cc eresource .getURI .isFile))
 
 (deftransformation jamopp2pg [[jamopp] [pg]]
   (main
    []
-   (binding [*tg* (ecreate! pg 'TypeGraph)]
-     (mapc class2tclass (filter user-defined? (eallcontents jamopp 'Class)))))
+   (binding [*tg* (pg/create-TypeGraph! pg)]
+     (mapc class2tclass (filter user-defined? (j/eall-Classes jamopp)))))
   (type2tclass
    :from [t 'Type]
    :disjuncts [class2tclass primitive2tclass])
@@ -52,44 +53,38 @@
    :disjuncts [field2tfielddef method2tmethoddef])
   (class2tclass
    :from [c 'Class]
-   :to [tc 'TClass]
-   (eadd! *tg* :classes tc)
-   (eset! tc :tName (type-name c))
+   :to [tc 'TClass {:tName (type-name c)}]
+   (pg/->add-classes! *tg* tc)
    (when (user-defined? c)
-     (when-let [super-ref (eget c :extends)]
-       (eset! tc :parentClass (class2tclass (ref-target super-ref))))
-     (let [fields (remove static? (filter (type-matcher jamopp 'Field)
-                                          (eget c :members)))
+     (when-let [super-ref (j/->extends c)]
+       (pg/->set-parentClass! tc (class2tclass (ref-target super-ref))))
+     (let [fields (remove static? (filter j/isa-Field? (j/->members c)))
            tfields (map #(field2tfielddef %) fields)
-           methods (remove static? (filter (type-matcher jamopp 'ClassMethod)
-                                           (eget c :members)))
+           methods (remove static? (filter j/isa-ClassMethod? (j/->members c)))
            tmethods (map #(method2tmethoddef %) methods)]
-       (eaddall! tc :defines (concat tfields tmethods))
-       (eaddall! tc :signature (concat (map #(eget % :signature)
-                                            tfields)
-                                       (map #(eget % :signature)
-                                            tmethods)))
+       (pg/->addall-defines! tc (concat tfields tmethods))
+       (pg/->addall-signature! tc (concat (map pg/->signature tfields)
+                                          (map pg/->signature tmethods)))
        (doseq [m (concat fields methods)]
-         (eset! (member2tmemberdef m)
-                :access (map member2tmemberdef
-                             (p-apply m [p-seq
-                                         [p-alt :statements :initialValue]
-                                         [p-* <>--] :target
-                                         [p-restr [:or 'Field 'ClassMethod]
-                                          (complement static?)]])))))))
+         (pg/->set-access! (member2tmemberdef m)
+                           (map member2tmemberdef
+                                (p-apply m [p-seq
+                                            [p-alt :statements :initialValue]
+                                            [p-* <>--] :target
+                                            [p-restr [:or 'Field 'ClassMethod]
+                                             (complement static?)]])))))))
   (primitive2tclass
    :from [pt 'PrimitiveType]
    :id   [name (type-name pt)]
    :to   [tc 'TClass {:tName name}])
   (get-tfield
    :from [f 'Field]
-   :id   [name (eget f :name)]
+   :id   [name (j/name f)]
    :to   [tf 'TField {:tName name}]
-   (eadd! *tg* :fields tf))
+   (pg/->add-fields! *tg* tf))
   (get-tfieldsig
    :from [f 'Field]
-   :id   [sig (str (type-name (get-type f))
-                   (eget f :name))]
+   :id   [sig (str (type-name (get-type f)) (j/name f))]
    :to   [tfs 'TFieldSignature {:field (get-tfield f)
                                 :type  (type2tclass (get-type f))}])
   (field2tfielddef
@@ -98,24 +93,24 @@
    :to   [tfd 'TFieldDefinition {:signature (get-tfieldsig f)}])
   (get-tmethod
    :from [m 'ClassMethod]
-   :id   [name (eget m :name)]
+   :id   [name (j/name m)]
    :to   [tm 'TMethod {:tName name}]
-   (eadd! *tg* :methods tm))
+   (pg/->add-methods! *tg* tm))
   (get-tmethodsig
    :from [m 'ClassMethod]
    :id   [sig (str (type-name (get-type m))
-                   (eget m :name)
+                   (j/name m)
                    "(" (str/join ", " (map #(type-name (get-type %))
-                                           (eget m :parameters))) ")")]
+                                           (j/->parameters m))) ")")]
    :to   [tms 'TMethodSignature {:method (get-tmethod m)
                                  :paramList (map #(type2tclass (get-type %))
-                                                 (eget m :parameters))}])
+                                                 (j/->parameters m))}])
   (method2tmethoddef
    :from [m 'ClassMethod]
    :when (not (static? m))
    :to   [tmd 'TMethodDefinition {:returnType (type2tclass (get-type m))
                                   :signature (get-tmethodsig m)}]
-   (eadd! (class2tclass (econtainer m)) :defines tmd)))
+   (pg/->add-defines! (class2tclass (econtainer m)) tmd)))
 
 (defn prepare-pg2jamopp-map [trace]
   (atom (into {} (comp (map #(% trace))
