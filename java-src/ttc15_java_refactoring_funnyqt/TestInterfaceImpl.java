@@ -191,6 +191,7 @@ public class TestInterfaceImpl implements TestInterface {
 		synchronizer.invoke(jamoppRS);
 	    }
 	    SAVE_JAVA_RESOURCE_SET.invoke(jamoppRS);
+	    //Thread.sleep(1000000);
 	    //copyDir(programPath, "/home/horn/tmp/JR/", testName + "-after/");
 	    return true;
 	} catch (Exception e) {

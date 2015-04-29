@@ -1,4 +1,5 @@
-(ns ttc15-java-refactoring-funnyqt.refactor
+(ns ^{:pattern-expansion-context :emf}
+  ttc15-java-refactoring-funnyqt.refactor
   (:require [clojure.string   :as    str]
             [funnyqt.emf      :refer :all]
             [funnyqt.query    :refer [member? forall? the]]
@@ -73,7 +74,10 @@
     (eadd! (@pg2jamopp-map-atom super) :members (@pg2jamopp-map-atom md))))
 
 (defn make-type-reference [target-class]
-  (ecreate! nil 'ClassifierReference {:target target-class}))
+  (ecreate! nil 'NamespaceClassifierReference
+            {:namespaces (eget (econtainer target-class) :namespaces)
+             :classifierReferences [(ecreate! nil 'ClassifierReference
+                                              {:target target-class})]}))
 
 (defn create-superclass [pg pg2jamopp-map-atom classes new-superclass-qn]
   (let [scs (into #{} (map #(eget-raw % :parentClass)) classes)]
@@ -89,9 +93,13 @@
         (fn [^ResourceSet rs]
           (let [[pkgs class-name] (let [parts (str/split new-superclass-qn #"\.")]
                                     [(butlast parts) (last parts)])
-                r (new-resource rs (str/replace (.toFileString (.getURI ^Resource (.get (.getResources rs) 0)))
-                                                #"[A-Za-z0-9]+\.java$" (str class-name ".java")))
-                nc (ecreate! nil 'Class {:name class-name})
+                r (new-resource rs (str (->> (.toFileString
+                                              (.getURI ^Resource (.get (.getResources rs) 0)))
+                                             (re-matches #"(.*/src/).*")
+                                             second)
+                                        (str/join "/" pkgs) "/" class-name ".java"))
+                nc (ecreate! nil 'Class {:name class-name
+                                         :annotationsAndModifiers [(ecreate! nil 'Public)]})
                 cu (ecreate! r 'CompilationUnit {:name (str new-superclass-qn ".java")
                                                  :namespaces  pkgs
                                                  :classifiers [nc]})]
