@@ -43,42 +43,63 @@
 
 ;;* Task 2: Refactoring on the Program Graph
 
-(defpattern pull-up-member-pattern [pg super sig]
-  [super<TClass> -<:childClasses>-> sub -<:signature>-> sig
-   sub -<:defines>-> member<TMember> -<:signature>-> sig
-   :nested [others [super -<:childClasses>-> osub
-                    :when (not= sub osub)
-                    osub -<:signature>-> sig
-                    osub -<:defines>-> omember<TMember> -<:signature>-> sig]]
-   ;; super doesn't have a member of this signature already
-   super -!<:signature>-> sig
-   ;; Really all subclasses define a member with that sig
-   :when (= (count (pg/->childClasses super))
-            (inc (count others)))
-   :let [all-members (conj (map :omember others) member)]
-   ;; All accesses from all members must be accessible already from the
-   ;; superclass.
-   :when (forall? (partial accessible-from? super)
-                  (mapcat #(eget % :access) all-members))])
+(defpattern pull-up-member-pattern
+  ([pg]
+   [super<TClass> -<:childClasses>-> sub -<:signature>-> sig
+    :extends [(pull-up-member-pattern 1)]])
+  ([pg super sig]
+   [super<TClass> -<:childClasses>-> sub -<:signature>-> sig
+    sub -<:defines>-> member<TMember> -<:signature>-> sig
+    :nested [others [super -<:childClasses>-> osub
+                     :when (not= sub osub)
+                     osub -<:signature>-> sig
+                     osub -<:defines>-> omember<TMember> -<:signature>-> sig]]
+    ;; There are actually other subclasses with this sig
+    :when (seq others)
+    ;; super doesn't have a member of this signature already
+    super -!<:signature>-> sig
+    ;; Really all subclasses define a member with that sig
+    :when (= (count (pg/->childClasses super))
+             (inc (count others)))
+    :let [all-members (conj (map :omember others) member)]
+    ;; All accesses from all members must be accessible already from the
+    ;; superclass.
+    :when (forall? (partial accessible-from? super)
+                   (mapcat #(eget % :access) all-members))]))
 
-(defrule pull-up-method [pg pg2jamopp-map-atom super sig]
-  [:extends [pull-up-member-pattern]
-   member<TMethodDefinition>]
-  (println "Pulling up" (-> sig pg/->method pg/tName) "to" (pg/tName super))
-  ;; Delete the other method defs
+(defn do-pull-up-member! [pg2jamopp-map-atom super member sig others]
+  ;; Delete the other member defs
   (doseq [o others]
     (edelete! (:omember o)))
-  ;; Add it to the super class
+  ;; Add the member to the super class
   (pg/->add-defines! super member)
   (pg/->add-signature! super sig)
+  ;; Synchronize action on the JaMoPP model
   (fn [_]
     (doseq [o others]
       (edelete! (@pg2jamopp-map-atom (:omember o)))
       (swap! pg2jamopp-map-atom dissoc (:omember o)))
     (j/->add-members! (@pg2jamopp-map-atom super) (@pg2jamopp-map-atom member))))
 
-#_(defrule pull-up-field [pg pg2jamopp-map-atom super sig]
-    [])
+(defrule pull-up-method
+  ([pg pg2jamopp-map-atom] [:extends [(pull-up-member-pattern 0)]
+                            member<TMethodDefinition>]
+   (println "Pulling up" (-> sig pg/->method pg/tName) "to" (pg/tName super))
+   (do-pull-up-member! pg2jamopp-map-atom super member sig others))
+  ([pg pg2jamopp-map-atom super sig] [:extends [(pull-up-member-pattern 1)]
+                                      member<TMethodDefinition>]
+   (println "Pulling up" (-> sig pg/->method pg/tName) "to" (pg/tName super))
+   (do-pull-up-member! pg2jamopp-map-atom super member sig others)))
+
+(defrule pull-up-field
+  ([pg pg2jamopp-map-atom] [:extends [(pull-up-member-pattern 0)]
+                            member<TFieldDefinition>]
+   (println "Pulling up" (-> sig pg/->field pg/tName) "to" (pg/tName super))
+   (do-pull-up-member! pg2jamopp-map-atom super member sig others))
+  ([pg pg2jamopp-map-atom super sig] [:extends [(pull-up-member-pattern 1)]
+                                      member<TFieldDefinition>]
+   (println "Pulling up" (-> sig pg/->field pg/tName) "to" (pg/tName super))
+   (do-pull-up-member! pg2jamopp-map-atom super member sig others)))
 
 (defn make-type-reference [target-class]
   (j/create-NamespaceClassifierReference!
