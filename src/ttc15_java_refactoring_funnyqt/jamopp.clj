@@ -37,17 +37,14 @@ JavaPackage/eINSTANCE
 (defn parse-directory [dir]
   (let [rs (ResourceSetImpl.)]
     (.put (.getLoadOptions rs)
-          IJavaOptions/DISABLE_LOCATION_MAP
-          Boolean/TRUE)
+          IJavaOptions/DISABLE_LOCATION_MAP Boolean/TRUE)
     (doseq [^java.io.File f (file-seq (io/file dir))
-            :when (and (.isFile f)
-                       (re-matches #".*\.java$" (.getName f)))]
+            :when (and (.isFile f) (re-matches #".*\.java$" (.getName f)))]
       (parse-file rs f))
     rs))
 
 (defn save-java-rs [^ResourceSet rs]
   (doseq [^Resource r (.getResources rs)
           :let [uri (.getURI r)]
-          :when (and (.isFile uri)
-                     (= "java" (.fileExtension uri)))]
+          :when (and (.isFile uri) (= "java" (.fileExtension uri)))]
     (emf/save-resource r)))
