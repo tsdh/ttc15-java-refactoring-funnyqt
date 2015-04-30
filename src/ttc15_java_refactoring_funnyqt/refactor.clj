@@ -82,23 +82,21 @@
     (j/->add-members! (@pg2jamopp-map-atom super) (@pg2jamopp-map-atom member))))
 
 (defrule pull-up-method
-  ([pg pg2jamopp-map-atom] [:extends [(pull-up-member-pattern 0)]
-                            member<TMethodDefinition>]
-   (println "Pulling up" (-> sig pg/->method pg/tName) "to" (pg/tName super))
-   (do-pull-up-member! pg2jamopp-map-atom super member sig others))
+  ([pg pg2jamopp-map-atom jamopp] [:extends [(pull-up-member-pattern 0)]
+                                   member<TMethodDefinition>]
+   ((do-pull-up-member! pg2jamopp-map-atom super member sig others)
+    jamopp))
   ([pg pg2jamopp-map-atom super sig] [:extends [(pull-up-member-pattern 1)]
                                       member<TMethodDefinition>]
-   (println "Pulling up" (-> sig pg/->method pg/tName) "to" (pg/tName super))
    (do-pull-up-member! pg2jamopp-map-atom super member sig others)))
 
 (defrule pull-up-field
-  ([pg pg2jamopp-map-atom] [:extends [(pull-up-member-pattern 0)]
-                            member<TFieldDefinition>]
-   (println "Pulling up" (-> sig pg/->field pg/tName) "to" (pg/tName super))
-   (do-pull-up-member! pg2jamopp-map-atom super member sig others))
+  ([pg pg2jamopp-map-atom jamopp] [:extends [(pull-up-member-pattern 0)]
+                                   member<TFieldDefinition>]
+   ((do-pull-up-member! pg2jamopp-map-atom super member sig others)
+    jamopp))
   ([pg pg2jamopp-map-atom super sig] [:extends [(pull-up-member-pattern 1)]
                                       member<TFieldDefinition>]
-   (println "Pulling up" (-> sig pg/->field pg/tName) "to" (pg/tName super))
    (do-pull-up-member! pg2jamopp-map-atom super member sig others)))
 
 (defn make-type-reference [target-class]
@@ -107,32 +105,40 @@
         :classifierReferences [(j/create-ClassifierReference!
                                 nil {:target target-class})]}))
 
-(defn create-superclass [pg pg2jamopp-map-atom classes new-superclass-qn]
-  (let [scs (into #{} (map pg/->parentClass) classes)]
-    (when (and (= 1 (count scs))
-               (not (find-tclass pg new-superclass-qn)))
-      (println "Creating new superclass" new-superclass-qn
-               (if (first scs)
-                 (str "with parent" (pg/tName (first scs)))
-                 "with no parent"))
-      (let [new-tclass (pg/create-TClass! pg {:tName new-superclass-qn
-                                              :childClasses classes
-                                              :parentClass (first scs)})]
-        (fn [^ResourceSet rs]
-          (let [[pkgs class-name] (let [parts (str/split new-superclass-qn #"\.")]
-                                    [(butlast parts) (last parts)])
-                r (new-resource rs (str (->> (.toFileString
-                                              (.getURI ^Resource (.get (.getResources rs) 0)))
-                                             (re-matches #"(.*/src/).*")
-                                             second)
-                                        (str/join "/" pkgs) "/" class-name ".java"))
-                nc (j/create-Class! nil {:name class-name
-                                         :annotationsAndModifiers [(j/create-Public! nil)]})
-                cu (j/create-CompilationUnit! r {:name (str new-superclass-qn ".java")
-                                                 :namespaces  pkgs
-                                                 :classifiers [nc]})]
-            (doseq [c classes]
-              (j/->set-extends! (@pg2jamopp-map-atom c) (make-type-reference nc)))
-            (when-let [parent (first scs)]
-              (j/->set-extends! nc (make-type-reference (@pg2jamopp-map-atom parent))))
-            (swap! pg2jamopp-map-atom assoc new-tclass nc)))))))
+(defrule create-superclass
+  ([pg pg2jamopp-map-atom jamopp]
+   [sig<TSignature>
+    :let [classes (filter #(member? sig (pg/->signature %))
+                          (remove pg/->parentClass (pg/all-TClasses pg)))
+          new-superclass-qn (str (gensym "extensionclasses.NewParent"))]
+    :extends [(create-superclass 1)]]
+   ((create-superclass pg pg2jamopp-map-atom classes new-superclass-qn)
+    jamopp))
+  ([pg pg2jamopp-map-atom classes new-superclass-qn]
+   [:let [scs (into #{} (map pg/->parentClass) classes)]
+    :when (and (= 1 (count scs)) (not (find-tclass pg new-superclass-qn)))]
+   (let [new-tclass (pg/create-TClass! pg {:tName new-superclass-qn
+                                           :childClasses classes
+                                           :parentClass (first scs)})]
+     (fn [^ResourceSet rs]
+       (let [[pkgs class-name] (let [parts (str/split new-superclass-qn #"\.")]
+                                 [(butlast parts) (last parts)])
+             ^Resource other-r (.get (.getResources rs) 0)
+             r (new-resource rs (str (->> other-r .getURI .toFileString
+                                          (re-matches #"(.*/src/).*")
+                                          second)
+                                     (str/join "/" pkgs) "/" class-name ".java"))
+             nc (j/create-Class! nil {:name class-name
+                                      :annotationsAndModifiers [(j/create-Public! nil)]})
+             cu (j/create-CompilationUnit! r {:name (str new-superclass-qn ".java")
+                                              :namespaces  pkgs
+                                              :classifiers [nc]})]
+         (doseq [c classes]
+           (j/->set-extends! (@pg2jamopp-map-atom c) (make-type-reference nc)))
+         (when-let [parent (first scs)]
+           (j/->set-extends! nc (make-type-reference (@pg2jamopp-map-atom parent))))
+         (swap! pg2jamopp-map-atom assoc new-tclass nc))))))
+
+(defn refactor-interactively [pg pg2jamopp-map-atom jamopp]
+  ((interactive-rule create-superclass pull-up-method pull-up-field)
+   pg pg2jamopp-map-atom jamopp))

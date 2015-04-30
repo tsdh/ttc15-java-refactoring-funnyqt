@@ -15,22 +15,10 @@
     (viz/print-model r :gtk)
     (println "No such resource" res-name)))
 
-(deftest test-pum-paper-example01
-  (println "Test PUM: paper-example01")
-  (let [jamopp (jamopp/parse-directory "test-src/paper-example01/src")
+(deftest test-refactor-interactively
+  (println "Testing interactive refactoring")
+  (let [jamopp (jamopp/parse-directory "test-src")
         pg (emf/new-resource)
-        mappings-atom (prepare-pg2jamopp-map (jamopp2pg jamopp pg))
-        tclass (or (find-tclass pg "example01.ParentClass")
-                   (u/error "TClass not found"))
-        tmethodsig (or (find-tmethodsig pg "method" ["java.lang.String" "int"])
-                       (u/error "TMethodSignature not found"))
-        thunk (pull-up-method pg mappings-atom tclass tmethodsig)]
-    #_(viz/print-model pg :gtk)
-    ;; The rule must have been applicable
-    (is thunk)
-    ;; Executing the thunk must work
-    (thunk jamopp)
-    ;; We don't save the resource set in order not to change test-src/
-    ))
-
-
+        mappings-atom (prepare-pg2jamopp-map (jamopp2pg jamopp pg))]
+    (refactor-interactively pg mappings-atom jamopp)
+    (jamopp/save-java-rs jamopp)))
