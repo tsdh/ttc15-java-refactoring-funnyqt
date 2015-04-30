@@ -44,7 +44,7 @@
   (main
    []
    (binding [*tg* (pg/create-TypeGraph! pg)]
-     (mapc class2tclass (filter user-defined? (j/eall-Classes jamopp)))))
+     (mapc class2tclass (filter user-defined? (j/all-Classes jamopp)))))
   (type2tclass
    :from [t 'Type]
    :disjuncts [class2tclass primitive2tclass])
