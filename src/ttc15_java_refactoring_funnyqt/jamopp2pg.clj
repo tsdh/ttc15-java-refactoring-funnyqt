@@ -16,8 +16,6 @@
 
 (load-ecore-resource "TypeGraphBasic.ecore")
 
-;;* Task 1: JaMoPP to Program Graph
-
 (def ^:dynamic *tg* nil)
 
 (defn static? [x]

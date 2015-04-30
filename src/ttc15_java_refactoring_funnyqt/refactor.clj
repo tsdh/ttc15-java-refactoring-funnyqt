@@ -2,7 +2,7 @@
   ttc15-java-refactoring-funnyqt.refactor
   (:require [clojure.string   :as    str]
             [funnyqt.emf      :refer :all]
-            [funnyqt.query    :refer [member? forall? the]]
+            [funnyqt.query    :refer [member? forall? exists? the]]
             [funnyqt.generic  :refer [has-type?]]
             [funnyqt.pmatch   :refer :all]
             [funnyqt.in-place :refer :all]
@@ -10,10 +10,7 @@
             ttc15-java-refactoring-funnyqt.jamopp
             [ttc15-java-refactoring-funnyqt.mm.java :as j]
             [ttc15-java-refactoring-funnyqt.mm.pg   :as pg])
-  (:import (ttc.testdsl.tTCTest Java_Class Java_Method)
-           (org.eclipse.emf.ecore.resource Resource ResourceSet)))
-
-;;* Utils
+  (:import (org.eclipse.emf.ecore.resource Resource ResourceSet)))
 
 (defn find-tclass [pg qn]
   (first (filter #(= qn (pg/tName %))
@@ -40,8 +37,6 @@
              (member? (pg/->signature m-or-f)
                       (pg/->signature cls))
              (superclass? cls defining-cls)))))
-
-;;* Task 2: Refactoring on the Program Graph
 
 (defpattern pull-up-member-pattern
   ([pg]

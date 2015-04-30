@@ -3,7 +3,6 @@
             [clojure.string  :as str]
             [funnyqt.emf     :as emf])
   (:import
-   ;; EMF
    (org.eclipse.emf.ecore EPackage EPackage$Registry EObject InternalEObject)
    (org.eclipse.emf.ecore.util EcoreUtil)
    (org.eclipse.emf.ecore.resource
@@ -11,7 +10,6 @@
    (org.eclipse.emf.ecore.resource.impl ResourceSetImpl)
    (org.eclipse.emf.common.util URI)
    (org.eclipse.emf.ecore.xmi.impl XMIResourceFactoryImpl)
-   ;; Jamopp
    (org.emftext.language.java JavaPackage)
    (org.emftext.language.java.resource JavaSourceOrClassFileResourceFactoryImpl)
    (org.emftext.language.java.resource.java IJavaOptions)))
@@ -38,12 +36,8 @@ JavaPackage/eINSTANCE
 
 (defn parse-directory [dir]
   (let [rs (ResourceSetImpl.)]
-    ;; rs.getLoadOptions().put(IJavaOptions.DISABLE_LOCATION_MAP, Boolean.TRUE)
     (.put (.getLoadOptions rs)
           IJavaOptions/DISABLE_LOCATION_MAP
-          Boolean/TRUE)
-    (.put (.getLoadOptions rs)
-          IJavaOptions/DISABLE_LAYOUT_INFORMATION_RECORDING
           Boolean/TRUE)
     (doseq [^java.io.File f (file-seq (io/file dir))
             :when (and (.isFile f)
