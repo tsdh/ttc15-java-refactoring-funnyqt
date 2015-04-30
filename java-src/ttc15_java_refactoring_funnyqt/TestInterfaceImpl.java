@@ -41,8 +41,8 @@ public class TestInterfaceImpl implements TestInterface {
     private static final IFn PREPARE_PG_TO_JAMOPP_MAP = Clojure.var(NS_JAMOPP2PG, "prepare-pg2jamopp-map");
     private static final IFn FIND_TCLASS = Clojure.var(NS_REFACTOR, "find-tclass");
     private static final IFn FIND_TMETHODSIGNATURE = Clojure.var(NS_REFACTOR, "find-tmethodsig");
-    private static final IFn REF_PULL_UP_METHOD = Clojure.var(NS_REFACTOR, "pull-up-method");
-    private static final IFn REF_CREATE_SUPERCLASS = Clojure.var(NS_REFACTOR, "create-superclass");
+    private static final IFn PULL_UP_MEMBER = Clojure.var(NS_REFACTOR, "pull-up-member");
+    private static final IFn CREATE_SUPERCLASS = Clojure.var(NS_REFACTOR, "create-superclass");
 
     private Object jamoppRS;
     private Resource programGraph;
@@ -64,9 +64,7 @@ public class TestInterfaceImpl implements TestInterface {
     public void copyDir(String from, String baseDir, String subDir) {
 	try {
 	    File bd = new File(baseDir);
-	    if (!bd.exists()) {
-		bd.mkdir();
-	    }
+	    if (!bd.exists()) bd.mkdir();
 	    File copyFolder = new File(baseDir, subDir);
 	    if (copyFolder.exists() && copyFolder.isDirectory()) {
 		System.out.println("Deleting folder " + copyFolder.getPath());
@@ -103,14 +101,12 @@ public class TestInterfaceImpl implements TestInterface {
 	List<String> tMethodParamQNs = new ArrayList<String>();
 	for (Java_Class c : javaClasses) {
 	    String pkg = c.getPackage();
-	    if (pkg != null) {
+	    if (pkg != null)
 		tMethodParamQNs.add( pkg + "." + c.getClass_name());
-	    } else {
+	    else
 		tMethodParamQNs.add(c.getClass_name());
-	    }
 	}
 	System.out.println("applyPullUpMethod(" + tClassQN + ", " + tMethodName + ")");
-
 	Object tClass = FIND_TCLASS.invoke(programGraph, tClassQN);
 	if (tClass == null) {
 	    System.out.println("No such TClass " + tClassQN);
@@ -121,17 +117,16 @@ public class TestInterfaceImpl implements TestInterface {
 	    System.out.print("No such TMethodSignature " + tMethodName + "(");
 	    boolean first = true;
 	    for (String p :tMethodParamQNs) {
-		if (first) {
+		if (first)
 		    first = false;
-		} else {
+		else
 		    System.out.print(", ");
-		}
 		System.out.print(p);
 	    }
 	    System.out.println(")");
 	    return false;
 	}
-	IFn s = (IFn) REF_PULL_UP_METHOD.invoke(programGraph, pgToJamoppMapAtom, tClass, tMethodSig);
+	IFn s = (IFn) PULL_UP_MEMBER.invoke(programGraph, pgToJamoppMapAtom, tClass, tMethodSig);
 	if (s == null) {
 	    System.out.println("The pull-up-method rule didn't match!");
 	    return false;
@@ -150,18 +145,17 @@ public class TestInterfaceImpl implements TestInterface {
 	for (Java_Class c :csr.getChild().getClasses()) {
 	    classes.add(FIND_TCLASS.invoke(programGraph, c.getPackage()
 					   + "." + c.getClass_name()));
-	    if (first) {
+	    if (first)
 		first = false;
-	    } else {
+	    else
 		System.out.print(", ");
-	    }
 	    System.out.print(c.getPackage() + "." + c.getClass_name());
 	}
 	System.out.println("], " + csr.getTarget().getPackage() + "."
 			   + csr.getTarget().getClass_name() + ")");
-	IFn s = (IFn) REF_CREATE_SUPERCLASS.invoke(programGraph, pgToJamoppMapAtom, classes,
-						   csr.getTarget().getPackage() + "."
-						   + csr.getTarget().getClass_name());
+	IFn s = (IFn) CREATE_SUPERCLASS.invoke(programGraph, pgToJamoppMapAtom, classes,
+					       csr.getTarget().getPackage() + "."
+					       + csr.getTarget().getClass_name());
 	if (s == null) {
 	    System.out.println("The create-superclass rule didn't match!");
 	    return false;

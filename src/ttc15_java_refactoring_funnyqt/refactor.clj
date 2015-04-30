@@ -38,25 +38,6 @@
                       (pg/->signature cls))
              (superclass? cls defining-cls)))))
 
-(defpattern pull-up-member-pattern
-  ([pg]
-   [super<TClass> -<:childClasses>-> sub -<:signature>-> sig
-    :extends [(pull-up-member-pattern 1)]])
-  ([pg super sig]
-   [super<TClass> -<:childClasses>-> sub -<:signature>-> sig
-    sub -<:defines>-> member<TMember> -<:signature>-> sig
-    :nested [others [super -<:childClasses>-> osub
-                     :when (not= sub osub)
-                     osub -<:signature>-> sig
-                     osub -<:defines>-> omember<TMember> -<:signature>-> sig]]
-    :when (seq others) ;; There are actually other subclasses with this sig
-    super -!<:signature>-> sig ;; super doesn't have a member of this sig
-    :when (= (count (pg/->childClasses super)) ;; all subs define  that sig
-             (inc (count others)))
-    :let [all-members (conj (map :omember others) member)]
-    :when (forall? (partial accessible-from? super)
-                   (mapcat #(eget % :access) all-members))]))
-
 (defn find-accessors [pg tmember]
   (filter #(member? tmember (pg/->access %))
           (pg/all-TMembers pg)))
@@ -77,23 +58,28 @@
       (swap! pg2jamopp-map-atom dissoc (:omember o)))
     (j/->add-members! (@pg2jamopp-map-atom super) (@pg2jamopp-map-atom member))))
 
-(defrule pull-up-method
-  ([pg pg2jamopp-map-atom jamopp] [:extends [(pull-up-member-pattern 0)]
-                                   member<TMethodDefinition>]
+(defrule pull-up-member
+  ([pg pg2jamopp-map-atom jamopp]
+   [super<TClass> -<:childClasses>-> sub -<:signature>-> sig
+    :extends [(pull-up-member 1)]]
    ((do-pull-up-member! pg pg2jamopp-map-atom super sub member sig others)
     jamopp))
-  ([pg pg2jamopp-map-atom super sig] [:extends [(pull-up-member-pattern 1)]
-                                      member<TMethodDefinition>]
+  ([pg pg2jamopp-map-atom super sig]
+   [super<TClass> -<:childClasses>-> sub -<:signature>-> sig
+    sub -<:defines>-> member<TMember> -<:signature>-> sig
+    :nested [others [super -<:childClasses>-> osub
+                     :when (not= sub osub)
+                     osub -<:signature>-> sig
+                     osub -<:defines>-> omember<TMember> -<:signature>-> sig]]
+    :when (seq others) ;; There are actually other subclasses with this sig
+    super -!<:signature>-> sig ;; super doesn't have a member of this sig
+    :when (= (count (pg/->childClasses super)) ;; all subs define  that sig
+             (inc (count others)))
+    :let [all-members (conj (map :omember others) member)]
+    :when (forall? (partial accessible-from? super)
+                   (mapcat #(eget % :access) all-members))]
    (do-pull-up-member! pg pg2jamopp-map-atom super sub member sig others)))
 
-(defrule pull-up-field
-  ([pg pg2jamopp-map-atom jamopp] [:extends [(pull-up-member-pattern 0)]
-                                   member<TFieldDefinition>]
-   ((do-pull-up-member! pg pg2jamopp-map-atom super sub member sig others)
-    jamopp))
-  ([pg pg2jamopp-map-atom super sig] [:extends [(pull-up-member-pattern 1)]
-                                      member<TFieldDefinition>]
-   (do-pull-up-member! pg pg2jamopp-map-atom super sub member sig others)))
 
 (defn make-type-reference [target-class]
   (j/create-NamespaceClassifierReference!
@@ -143,10 +129,8 @@
     (doseq [sig (filter (fn [sig]
                           (forall? #(member? sig (pg/->signature %)) classes))
                         (pg/all-TSignatures pg))]
-      (if (pg/isa-TFieldSignature? sig)
-        ((pull-up-field pg pg2jamopp-map-atom super sig) jamopp)
-        ((pull-up-method pg pg2jamopp-map-atom super sig) jamopp)))))
+      ((pull-up-member pg pg2jamopp-map-atom super sig) jamopp))))
 
 (defn refactor-interactively [pg pg2jamopp-map-atom jamopp]
-  ((interactive-rule create-superclass pull-up-method pull-up-field extract-superclass)
+  ((interactive-rule create-superclass pull-up-member extract-superclass)
    pg pg2jamopp-map-atom jamopp))
