@@ -111,6 +111,7 @@
     :let [classes (filter #(member? sig (pg/->signature %))
                           (remove pg/->parentClass (pg/all-TClasses pg)))
           new-superclass-qn (str (gensym "extensionclasses.NewParent"))]
+    :when (> (count classes) 1)
     :extends [(create-superclass 1)]]
    ((create-superclass pg pg2jamopp-map-atom classes new-superclass-qn)
     jamopp))
