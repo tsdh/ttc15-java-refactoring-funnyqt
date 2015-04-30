@@ -54,27 +54,28 @@
                      :when (not= sub osub)
                      osub -<:signature>-> sig
                      osub -<:defines>-> omember<TMember> -<:signature>-> sig]]
-    ;; There are actually other subclasses with this sig
-    :when (seq others)
-    ;; super doesn't have a member of this signature already
-    super -!<:signature>-> sig
-    ;; Really all subclasses define a member with that sig
-    :when (= (count (pg/->childClasses super))
+    :when (seq others) ;; There are actually other subclasses with this sig
+    super -!<:signature>-> sig ;; super doesn't have a member of this sig
+    :when (= (count (pg/->childClasses super)) ;; all subs define  that sig
              (inc (count others)))
     :let [all-members (conj (map :omember others) member)]
-    ;; All accesses from all members must be accessible already from the
-    ;; superclass.
     :when (forall? (partial accessible-from? super)
                    (mapcat #(eget % :access) all-members))]))
 
-(defn do-pull-up-member! [pg2jamopp-map-atom super member sig others]
-  ;; Delete the other member defs
+(defn find-accessors [pg tmember]
+  (filter #(member? tmember (pg/->access %))
+          (pg/all-TMembers pg)))
+
+(defn do-pull-up-member! [pg pg2jamopp-map-atom super sub member sig others]
   (doseq [o others]
-    (edelete! (:omember o)))
-  ;; Add the member to the super class
+    (doseq [acc (find-accessors pg (:omember o))]
+      (pg/->remove-access! acc (:omember o))
+      (pg/->add-access! acc member))
+    (edelete! (:omember o))
+    (pg/->remove-signature! (:osub o) sig))
+  (pg/->remove-signature! sub sig)
   (pg/->add-defines! super member)
   (pg/->add-signature! super sig)
-  ;; Synchronize action on the JaMoPP model
   (fn [_]
     (doseq [o others]
       (edelete! (@pg2jamopp-map-atom (:omember o)))
@@ -84,20 +85,20 @@
 (defrule pull-up-method
   ([pg pg2jamopp-map-atom jamopp] [:extends [(pull-up-member-pattern 0)]
                                    member<TMethodDefinition>]
-   ((do-pull-up-member! pg2jamopp-map-atom super member sig others)
+   ((do-pull-up-member! pg pg2jamopp-map-atom super sub member sig others)
     jamopp))
   ([pg pg2jamopp-map-atom super sig] [:extends [(pull-up-member-pattern 1)]
                                       member<TMethodDefinition>]
-   (do-pull-up-member! pg2jamopp-map-atom super member sig others)))
+   (do-pull-up-member! pg pg2jamopp-map-atom super sub member sig others)))
 
 (defrule pull-up-field
   ([pg pg2jamopp-map-atom jamopp] [:extends [(pull-up-member-pattern 0)]
                                    member<TFieldDefinition>]
-   ((do-pull-up-member! pg2jamopp-map-atom super member sig others)
+   ((do-pull-up-member! pg pg2jamopp-map-atom super sub member sig others)
     jamopp))
   ([pg pg2jamopp-map-atom super sig] [:extends [(pull-up-member-pattern 1)]
                                       member<TFieldDefinition>]
-   (do-pull-up-member! pg2jamopp-map-atom super member sig others)))
+   (do-pull-up-member! pg pg2jamopp-map-atom super sub member sig others)))
 
 (defn make-type-reference [target-class]
   (j/create-NamespaceClassifierReference!
@@ -110,7 +111,7 @@
    [sig<TSignature>
     :let [classes (filter #(member? sig (pg/->signature %))
                           (remove pg/->parentClass (pg/all-TClasses pg)))
-          new-superclass-qn (str (gensym "extensionclasses.NewParent"))]
+          new-superclass-qn (str (gensym "ext.NewParent"))]
     :when (> (count classes) 1)
     :extends [(create-superclass 1)]]
    ((create-superclass pg pg2jamopp-map-atom classes new-superclass-qn)
@@ -126,7 +127,7 @@
                                  [(butlast parts) (last parts)])
              ^Resource other-r (.get (.getResources rs) 0)
              r (new-resource rs (str (->> other-r .getURI .toFileString
-                                          (re-matches #"(.*/src/).*")
+                                          (re-matches #"(.*[/-]src/).*")
                                           second)
                                      (str/join "/" pkgs) "/" class-name ".java"))
              nc (j/create-Class! nil {:name class-name
@@ -140,6 +141,17 @@
            (j/->set-extends! nc (make-type-reference (@pg2jamopp-map-atom parent))))
          (swap! pg2jamopp-map-atom assoc new-tclass nc))))))
 
+(defrule extract-superclass [pg pg2jamopp-map-atom jamopp]
+  [:extends [(create-superclass 0)]]
+  ((create-superclass pg pg2jamopp-map-atom classes new-superclass-qn) jamopp)
+  (let [super (find-tclass pg new-superclass-qn)]
+    (doseq [sig (filter (fn [sig]
+                          (forall? #(member? sig (pg/->signature %)) classes))
+                        (pg/all-TSignatures pg))]
+      (if (pg/isa-TFieldSignature? sig)
+        ((pull-up-field pg pg2jamopp-map-atom super sig) jamopp)
+        ((pull-up-method pg pg2jamopp-map-atom super sig) jamopp)))))
+
 (defn refactor-interactively [pg pg2jamopp-map-atom jamopp]
-  ((interactive-rule create-superclass pull-up-method pull-up-field)
+  ((interactive-rule create-superclass pull-up-method pull-up-field extract-superclass)
    pg pg2jamopp-map-atom jamopp))
