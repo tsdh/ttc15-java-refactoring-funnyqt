@@ -19,6 +19,11 @@ That will create a file
 containing the solution with all dependencies.  This is the JAR you should load
 as solution in ARTE.
 
+### Interactive refactoring
+
+To let the solution propose refactorings, just run `lein test` on the command
+line.  This will propose refactorings for the java classes in `test-src/`.
+
 ## License
 
 Copyright © 2015 Tassilo Horn <horn@uni-koblenz.de>

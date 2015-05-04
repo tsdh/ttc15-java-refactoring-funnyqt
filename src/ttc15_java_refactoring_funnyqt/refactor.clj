@@ -60,8 +60,7 @@
 
 (defrule pull-up-member
   ([pg pg2jamopp-map-atom jamopp]
-   [super<TClass> -<:childClasses>-> sub -<:signature>-> sig
-    :extends [(pull-up-member 1)]]
+   [:extends [(pull-up-member 1)]]
    ((do-pull-up-member! pg pg2jamopp-map-atom super sub member sig others)
     jamopp))
   ([pg pg2jamopp-map-atom super sig]
@@ -71,13 +70,11 @@
                      :when (not= sub osub)
                      osub -<:signature>-> sig
                      osub -<:defines>-> omember<TMember> -<:signature>-> sig]]
-    :when (seq others) ;; There are actually other subclasses with this sig
-    super -!<:signature>-> sig ;; super doesn't have a member of this sig
-    :when (= (count (pg/->childClasses super)) ;; all subs define  that sig
-             (inc (count others)))
-    :let [all-members (conj (map :omember others) member)]
+    :when (seq others)
+    super -!<:signature>-> sig
+    :when (= (count (pg/->childClasses super)) (inc (count others)))
     :when (forall? (partial accessible-from? super)
-                   (mapcat #(eget % :access) all-members))]
+                   (mapcat pg/->access (conj (map :omember others) member)))]
    (do-pull-up-member! pg pg2jamopp-map-atom super sub member sig others)))
 
 

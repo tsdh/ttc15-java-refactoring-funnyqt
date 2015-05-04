@@ -287,19 +287,355 @@ no difference in pulling up a method (\textsf{TMethodDefinition}) or a field
 more general as \emph{pull-up member} (\textsf{TMember}) and have it work for
 both fields and methods.  This is what the FunnyQT solution does.
 
+The corresponding \code|pull-up-member| rule is shown in the next listing.  The
+rule is overloaded on arity.  There is the version (1) of arity three which
+receives the program graph \code|pg|, the inverse lookup map atom
+\code|pg2jamopp-map-atom|, and the JaMoPP resource set \code|jamopp|, and there
+is the version (2) of arity four which receives the program graph \code|pg|,
+the inverse lookup map atom \code|pg2jamopp-map-atom|, a \textsf{TClass}
+\code|super|, and a \textsf{TSignature} \code|sig|.
 
+\begin{clojurecode*}{firstnumber=last}
+(defrule pull-up-member
+  ([pg pg2jamopp-map-atom jamopp]                                             ;; (1)
+   [:extends [(pull-up-member 1)]]                                            ;; pattern
+   ((do-pull-up-member! pg pg2jamopp-map-atom super sub member sig others)    ;; action
+    jamopp))
+  ([pg pg2jamopp-map-atom super sig]                                          ;; (2)
+   [super<TClass> -<:childClasses>-> sub -<:signature>-> sig                  ;; pattern
+    sub -<:defines>-> member<TMember> -<:signature>-> sig
+    :nested [others [super -<:childClasses>-> osub
+                     :when (not= sub osub)
+                     osub -<:signature>-> sig
+                     osub -<:defines>-> omember<TMember> -<:signature>-> sig]]
+    :when (seq others)                                                        ;; (a)
+    super -!<:signature>-> sig                                                ;; (b)
+    :when (= (count (pg/->childClasses super)) (inc (count others)))          ;; (c)
+    :when (forall? (partial accessible-from? super)                           ;; (d)
+                   (mapcat pg/->access (conj (map :omember others) member)))]
+   (do-pull-up-member! pg pg2jamopp-map-atom super sub member sig others)))   ;; action
+\end{clojurecode*}
+
+The version (2) is the one which is called by the \textsf{TestInterface}
+implementation when being called from ARTE.  We'll discuss this one first.
+
+The pattern of the version (2) matches a subclass \code|sup| of class
+\code|super| where \code|sub| defines a \code|member| of the given signature
+\code|sig|.  A nested pattern is used to match all other subclasses of
+\code|super| which also define a member with that signature.  The constraint
+(a) ensures that there are in fact other subclasses declaring a member with
+signature \code|sig|.  Then the negative application condition (b) defines that
+the superclass \code|super| must not define a member of the given \code|sig|
+already.  The constraint (c) ensures that all subclasses define a member of the
+given \code|sig|, i.e., not only a subset of all subclasses do so.  Lastly, the
+constraint (d) makes sure that all field and method definitions accessed by the
+member to be pulled up is already accessible from the superclass.
+
+The helper function \code|accessible-from?| is defined as follows.
+
+\begin{clojurecode*}{firstnumber=last}
+(defn accessible-from? [cls m-or-f]
+  (let [defining-cls (econtainer m-or-f)]
+    (or (= defining-cls cls)                    ;; (i)
+        (superclass? defining-cls cls)          ;; (ii)
+        (not (superclass? cls defining-cls))    ;; (iii)
+        (and (pg/isa-TMethodDefinition? m-or-f) ;; (iv)
+             (member? (pg/->signature m-or-f)
+                      (pg/->signature cls))
+             (superclass? cls defining-cls)))))
+
+(defn superclass? [super sub]
+  (loop [sub-super (pg/->parentClass sub)]
+    (when sub-super
+      (or (= sub-super super)
+          (recur (pg/->parentClass sub-super))))))
+\end{clojurecode*}
+
+It receives a \textsf{TClass} \code|cls| and a \textsf{TMember}
+\textsf{m-or-f}.  It returns true only if the given member is accessible from
+the given class.  To decide that, it first computes the \textsf{TClass}
+defining the member.  Then, there are four cases in which \code|m-or-f| is
+accessible from \code|cls|:
+\begin{inparaenum}[(i)]
+\item the member is defined in \code|cls|,
+\item \code|cls| inherits the member from a superclass,
+\item the defining class and \code|cls| are in no inheritance relationship at
+  all, or
+\item the member is a method defined in a subclass of \code|cls|, and this
+  method overrides a method defined by \code|cls|.
+\end{inparaenum}
+
+The pattern of the arity three variant (1) of the \code|pull-up-member| rule
+contains just an \code|:extends| clause specifying that its pattern equals the
+pattern defined for the arity four variant.  The variant (1) is used by the
+extension task~2 where possible refactorings are to be proposed to the user.
+The difference between the overloaded versions of the \code|pull-up-member|
+rule is that version (1) matches \code|super| and \code|sig| itself whereas
+these two elements are parameters provided by the caller in version (2).
+
+When a match is found, both versions of the rule call the function
+\code|do-pull-up-member!| which is defined as follows.
+
+\begin{clojurecode*}{firstnumber=last}
+(defn do-pull-up-member! [pg pg2jamopp-map-atom super sub member sig others]
+  (doseq [o others]                                                 ;; PG modification
+    (doseq [acc (find-accessors pg (:omember o))]
+      (pg/->remove-access! acc (:omember o))
+      (pg/->add-access! acc member))
+    (edelete! (:omember o))
+    (pg/->remove-signature! (:osub o) sig))
+  (pg/->remove-signature! sub sig)
+  (pg/->add-defines! super member)
+  (pg/->add-signature! super sig)
+  (fn [_]                                                           ;; JaMoPP modification
+    (doseq [o others]
+      (edelete! (@pg2jamopp-map-atom (:omember o)))
+      (swap! pg2jamopp-map-atom dissoc (:omember o)))
+    (j/->add-members! (@pg2jamopp-map-atom super) (@pg2jamopp-map-atom member))))
+
+(defn find-accessors [pg tmember]
+  (filter #(member? tmember (pg/->access %))
+          (pg/all-TMembers pg)))
+\end{clojurecode*}
+
+It first applies the changes to the program graph by deleting all duplicate
+member definitions from all other subclasses of \code|super| and pulling up the
+selected member into \code|super|.  It also updates all accessors of the old
+members in order to have them access the single pulled up member.  Lastly, it
+returns a closure which performs the equivalent changes in the JaMoPP model and
+updates the reference to the inverse lookup map when being called.
+
+We return a function encapsulating the changes here instead of simply applying
+the changes because the ARTE \textsf{TestInterface} defines that the
+back-propagation of changes happens at a different point in time than the rule
+application.  Thus, the solution's \textsf{TestInterface} implementation simply
+collects the closures returned by appling a rule in a Java collection and
+invokes them in its \code|synchronizeChanges()| implementation.
+
+Note that the rule's variant (1) immediately invokes the function returned by
+\code|do-pull-up-member!|.  This is because this variant is not called by ARTE
+but is intended for extension task~2, and with that there is no need to defer
+back-propagation.
 
 
 
 \paragraph{Create Superclass.}
 
-\paragraph{Extract Superclass.}
+The \code|create-superclass| rule uses the same mechanics as the
+\code|pull-up-member| rule.  Again, it is overloaded on arity where the first
+version is intended for proposing refactorings to a user and the second version
+is for being called by ARTE.
 
+\begin{clojurecode*}{firstnumber=last}
+(defrule create-superclass
+  ([pg pg2jamopp-map-atom jamopp]
+   [sig<TSignature>
+    :let [classes (filter #(member? sig (pg/->signature %))
+                          (remove pg/->parentClass (pg/all-TClasses pg)))
+          new-superclass-qn (str (gensym "ext.NewParent"))]
+    :when (> (count classes) 1)
+    :extends [(create-superclass 1)]]
+   ((do-create-superclass! pg pg2jamopp-map-atom classes scs new-superclass-qn)
+    jamopp))
+  ([pg pg2jamopp-map-atom classes new-superclass-qn]
+   [:let [scs (into #{} (map pg/->parentClass) classes)]
+    :when (and (= 1 (count scs))
+               (not (find-tclass pg new-superclass-qn)))]
+   (do-create-superclass! pg pg2jamopp-map-atom classes scs new-superclass-qn)))
+\end{clojurecode*}
+
+The second version is called by ARTE with a set of \code|classes| for which a
+new superclass with qualified name \code|new-superclass-qn| should be created.
+That version's pattern first computes the set of superclasses \code|scs| of the
+given classes.  The constraint then ensures that this set contains exactly one
+element, and that no class with qualified name \code|new-superclass-qn| already
+exists.  The set of superclasses \code|scs| has exactly one element when either
+all the given \code|classes| have no superclass\footnote{Then the set
+  \code|scs| contains just \code|nil|.} or all the given \code|classes| have
+the same superclass.
+
+The first version of the rule matches a \textsf{TSignature} \code|sig| and all
+classes with no superclass which define this signature.  The constraint defines
+that there must be at least two such classes.  This ensures that a create
+superclass refactoring is only suggested to the user if there are at least two
+classes with duplicate features which could be pulled up in further refactoring
+steps.  Lastly, the pattern extends the pattern of the second version of
+\code|create-superclass| and thus inherits the additional binding and
+constraint defined in there.
+
+The rule's action in both versions is to call \code|do-create-superclass!|
+which is defined as given below.
+
+\begin{clojurecode*}{firstnumber=last}
+(defn do-create-superclass! [pg pg2jamopp-map-atom classes scs new-superclass-qn]
+  (let [new-tclass (pg/create-TClass! pg {:tName new-superclass-qn
+                                          :childClasses classes
+                                          :parentClass (first scs)})]
+    (fn [^ResourceSet rs]
+      (let [[pkgs class-name] (let [parts (str/split new-superclass-qn #"\.")]
+                                [(butlast parts) (last parts)])
+            ^Resource other-r (.get (.getResources rs) 0)
+            r (new-resource rs (str (->> other-r .getURI .toFileString
+                                         (re-matches #"(.*[/-]src/).*")
+                                         second)
+                                    (str/join "/" pkgs) "/" class-name ".java"))
+            nc (j/create-Class! nil {:name class-name
+                                     :annotationsAndModifiers [(j/create-Public! nil)]})
+            cu (j/create-CompilationUnit! r {:name (str new-superclass-qn ".java")
+                                             :namespaces  pkgs
+                                             :classifiers [nc]})]
+        (doseq [c classes]
+          (j/->set-extends! (@pg2jamopp-map-atom c) (make-type-reference nc)))
+        (when-let [parent (first scs)]
+          (j/->set-extends! nc (make-type-reference (@pg2jamopp-map-atom parent))))
+        (swap! pg2jamopp-map-atom assoc new-tclass nc)))))
+
+(defn make-type-reference [target-class]
+  (j/create-NamespaceClassifierReference!
+   nil {:namespaces (j/namespaces (econtainer target-class))
+        :classifierReferences [(j/create-ClassifierReference!
+                                nil {:target target-class})]}))
+\end{clojurecode*}
+
+It creates a new \textsf{TClass} of the given \code|new-superclass-qn| in the
+program graph, and makes all \code|classes| a subclass of it.  If those had a
+common superclass before the refactoring, then this common superclass becomes
+the superclass of the newly created class.
+
+The function again returns a closure which performs the same change to the
+JaMoPP model when being invoked to the JaMoPP resource set.  Here, the changes
+are a bit longish because actually a new resource containing a compilation unit
+defining the new class need to be created, and a bit string-matching needs to
+be performed to figure out with which file the newly created class has to be
+associated in order to make JaMaPP's serialization back to Java work.
+
+
+\paragraph{Extract Superclass (Extension~1).}
+
+With the \code|pull-up-member| and \code|create-superclass| rules in place,
+defining a \code|extract-superclass| rule is simply a matter of composing the
+former two as given below.
+
+\begin{clojurecode*}{firstnumber=last}
+(defrule extract-superclass [pg pg2jamopp-map-atom jamopp]
+  [:extends [(create-superclass 0)]]
+  ((create-superclass pg pg2jamopp-map-atom classes new-superclass-qn) jamopp)
+  (let [super (find-tclass pg new-superclass-qn)]
+    (doseq [sig (filter (fn [sig]
+                          (forall? #(member? sig (pg/->signature %)) classes))
+                        (pg/all-TSignatures pg))]
+      ((pull-up-member pg pg2jamopp-map-atom super sig) jamopp))))
+\end{clojurecode*}
+
+The \code|extract-superclass| rule is not overloaded on arity because it is
+never called by ARTE.  Instead, it is only called by extension task~2 in order
+to propose a refactoring.
+
+Its pattern extends the pattern of the first variant of
+\code|create-superclass|.  Remember that this pattern has been defined in such
+a way that it matches only a set of classes which have common features, i.e.,
+classes for which \code|pull-up-member| will be applicable after creating a
+superclass.
+
+The rule's actions then simply call \code|create-superclass|, and then call
+\code|pull-up-member| for each member whose signature is defined by all
+subclasses of the newly created superclass.
+
+
+\paragraph{Propose Refactoring (Extension~2).}
+
+The rules \code|pull-up-member|, \code|create-superclass|, and
+\code|extract-superclass| discussed above already have overloaded versions (or
+just a single version) which match all elements relevant for the corresponding
+refactoring themselves.
+
+FunnyQT provides a rule combinator \code|interactive-rule| which receives one
+or many rules and returns a new rule which shows to the user all applicable
+rules and their matches.  The user can then select the rule and the match to be
+applied interactively.
+
+The definition for interactive refactoring is given below.
+
+\begin{clojurecode*}{firstnumber=last}
+(defn refactor-interactively [pg pg2jamopp-map-atom jamopp]
+  ((interactive-rule create-superclass pull-up-member extract-superclass)
+   pg pg2jamopp-map-atom jamopp))
+\end{clojurecode*}
+
+An interactive rule for \code|create-superclass|, \code|pull-up-member|, and
+\code|extract-superclass| is created and immediately applied to the arguments
+which the three rules have in common.
+
+\begin{figure}[h!tb]
+  \centering
+  \includegraphics[width=\textwidth]{propose-refactoring}
+  \caption{Interactive rule application}
+  \label{fig:interactive-rule-application}
+\end{figure}
+
+Figure \vref{fig:interactive-rule-application} shows a screenshot of the
+interactive rule application GUI.  All applicable rules are listed, and the
+match to which a rule should be applied can be selected from comboboxes.  Using
+the \emph{View model} and \emph{Show match} buttons, visualizations of the
+complete model or only the parts around the currently selected match can be
+shown.
+
+
+\paragraph{Detecting Refactoring Conflicts (Extension~3).}
+
+With FunnyQT, the actions of an in-place transformation rule are defined using
+plain FunnyQT/Clojure code.  Therefore, it is not possible to detect critical
+pairs using a static analysis in the general case.
+
+Instead, FunnyQT provides facilities for state space generation and
+exploration.  The state space graph with respect to a given set of refactoring
+rules could be computed and analyzed to determine which rule or sequence of
+rules makes some other rule inapplicable to some set of elements.
+
+However, the state space approach doesn't work in this concrete case, too.  The
+reason is that the state space generation internally copies the program graph
+model for each rule execution and then the inverse lookup map from program
+graph \textsf{TClass} and \textsf{TMember} elements to their JaMoPP
+counterparts is invalidated, i.e., it contains mappings only for the original
+elements but not for their copies.
 
 
 \subsection{Step~3: Program Graph to Java Code}
 \label{sec:step-3:pg-to-java}
 
+The core \code|pull-up-member| and \code|create-superclass| rules both return
+closures which perform the refactoring's actions in the JaMoPP model when ARTE
+calls the \textsf{TestInterface}'s \code|synchronizeChanges()| method.
+Thereafter, the JaMoPP model needs to be saved to reflect those changes also in
+the Java source code files.
+
+This is what \code|synchronizeChanges()| method of the solution's
+\textsf{TestInterface} implementation class does.
+
+\begin{minted}[fontsize=\fontsize{8}{8}]{java}
+    public boolean synchronizeChanges() {
+        try {
+            for (IFn synchronizer : synchronizeFns) {
+                synchronizer.invoke(jamoppRS);
+            }
+            SAVE_JAVA_RESOURCE_SET.invoke(jamoppRS);
+            return true;
+        } catch (Exception e) {
+            return false;
+        } finally {
+            synchronizeFns.clear();
+        }
+    }
+\end{minted}
+
+In there, \code|synchronizedFns| is the list of functions returned by the
+rules.  This list is filled by the two \code|apply*| methods which apply either
+the pull-up method refactoring or the create superclass refactoring.
+
+After the synchronizing functions have been invoked to the JaMoPP resource set,
+the resource set is saved.  \code|SAVE_JAVA_RESOURCE_SET| is a reference to the
+\code|save-java-rs| FunnyQT function discussed in subsection
+\vref{sec:step-1:java-to-pg}.
 
 
 \section{Evaluation}
