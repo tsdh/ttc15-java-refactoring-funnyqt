@@ -14,11 +14,6 @@
    (org.emftext.language.java.resource JavaSourceOrClassFileResourceFactoryImpl)
    (org.emftext.language.java.resource.java IJavaOptions)))
 
-(emf/generate-ecore-model-functions
- "java.ecore" ttc15-java-refactoring-funnyqt.mm.java)
-(emf/generate-ecore-model-functions
- "TypeGraphBasic.ecore" ttc15-java-refactoring-funnyqt.mm.pg)
-
 (defn ^:private set-up []
   (.put (.getExtensionToFactoryMap Resource$Factory$Registry/INSTANCE)
         "java" (JavaSourceOrClassFileResourceFactoryImpl.))

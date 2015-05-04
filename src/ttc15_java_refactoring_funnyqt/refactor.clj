@@ -7,7 +7,7 @@
             [funnyqt.pmatch   :refer :all]
             [funnyqt.in-place :refer :all]
             [funnyqt.utils    :refer [errorf]]
-            ttc15-java-refactoring-funnyqt.jamopp
+            ttc15-java-refactoring-funnyqt.jamopp2pg
             [ttc15-java-refactoring-funnyqt.mm.java :as j]
             [ttc15-java-refactoring-funnyqt.mm.pg   :as pg])
   (:import (org.eclipse.emf.ecore.resource Resource ResourceSet)))
@@ -87,6 +87,29 @@
         :classifierReferences [(j/create-ClassifierReference!
                                 nil {:target target-class})]}))
 
+(defn do-create-superclass! [pg pg2jamopp-map-atom classes scs new-superclass-qn]
+  (let [new-tclass (pg/create-TClass! pg {:tName new-superclass-qn
+                                          :childClasses classes
+                                          :parentClass (first scs)})]
+    (fn [^ResourceSet rs]
+      (let [[pkgs class-name] (let [parts (str/split new-superclass-qn #"\.")]
+                                [(butlast parts) (last parts)])
+            ^Resource other-r (.get (.getResources rs) 0)
+            r (new-resource rs (str (->> other-r .getURI .toFileString
+                                         (re-matches #"(.*[/-]src/).*")
+                                         second)
+                                    (str/join "/" pkgs) "/" class-name ".java"))
+            nc (j/create-Class! nil {:name class-name
+                                     :annotationsAndModifiers [(j/create-Public! nil)]})
+            cu (j/create-CompilationUnit! r {:name (str new-superclass-qn ".java")
+                                             :namespaces  pkgs
+                                             :classifiers [nc]})]
+        (doseq [c classes]
+          (j/->set-extends! (@pg2jamopp-map-atom c) (make-type-reference nc)))
+        (when-let [parent (first scs)]
+          (j/->set-extends! nc (make-type-reference (@pg2jamopp-map-atom parent))))
+        (swap! pg2jamopp-map-atom assoc new-tclass nc)))))
+
 (defrule create-superclass
   ([pg pg2jamopp-map-atom jamopp]
    [sig<TSignature>
@@ -95,32 +118,13 @@
           new-superclass-qn (str (gensym "ext.NewParent"))]
     :when (> (count classes) 1)
     :extends [(create-superclass 1)]]
-   ((create-superclass pg pg2jamopp-map-atom classes new-superclass-qn)
+   ((do-create-superclass! pg pg2jamopp-map-atom classes scs new-superclass-qn)
     jamopp))
   ([pg pg2jamopp-map-atom classes new-superclass-qn]
    [:let [scs (into #{} (map pg/->parentClass) classes)]
-    :when (and (= 1 (count scs)) (not (find-tclass pg new-superclass-qn)))]
-   (let [new-tclass (pg/create-TClass! pg {:tName new-superclass-qn
-                                           :childClasses classes
-                                           :parentClass (first scs)})]
-     (fn [^ResourceSet rs]
-       (let [[pkgs class-name] (let [parts (str/split new-superclass-qn #"\.")]
-                                 [(butlast parts) (last parts)])
-             ^Resource other-r (.get (.getResources rs) 0)
-             r (new-resource rs (str (->> other-r .getURI .toFileString
-                                          (re-matches #"(.*[/-]src/).*")
-                                          second)
-                                     (str/join "/" pkgs) "/" class-name ".java"))
-             nc (j/create-Class! nil {:name class-name
-                                      :annotationsAndModifiers [(j/create-Public! nil)]})
-             cu (j/create-CompilationUnit! r {:name (str new-superclass-qn ".java")
-                                              :namespaces  pkgs
-                                              :classifiers [nc]})]
-         (doseq [c classes]
-           (j/->set-extends! (@pg2jamopp-map-atom c) (make-type-reference nc)))
-         (when-let [parent (first scs)]
-           (j/->set-extends! nc (make-type-reference (@pg2jamopp-map-atom parent))))
-         (swap! pg2jamopp-map-atom assoc new-tclass nc))))))
+    :when (and (= 1 (count scs))
+               (not (find-tclass pg new-superclass-qn)))]
+   (do-create-superclass! pg pg2jamopp-map-atom classes scs new-superclass-qn)))
 
 (defrule extract-superclass [pg pg2jamopp-map-atom jamopp]
   [:extends [(create-superclass 0)]]

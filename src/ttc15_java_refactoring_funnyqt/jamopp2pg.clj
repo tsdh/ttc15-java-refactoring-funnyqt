@@ -6,13 +6,14 @@
             [funnyqt.query.emf   :refer [<>--]]
             [funnyqt.generic     :refer [type-case type-matcher]]
             [funnyqt.model2model :refer [deftransformation]]
-            [funnyqt.utils       :refer [mapc]]
-            [ttc15-java-refactoring-funnyqt.mm.java :as j]
-            [ttc15-java-refactoring-funnyqt.mm.pg   :as pg])
-  (:import (org.emftext.language.java.classifiers
-            ConcreteClassifier)
-           (org.emftext.language.java.types
-            TypeReference PrimitiveType)))
+            [funnyqt.utils       :refer [mapc]])
+  (:import (org.emftext.language.java.classifiers ConcreteClassifier)
+           (org.emftext.language.java.types TypeReference PrimitiveType)))
+
+(generate-ecore-model-functions
+ "java.ecore" ttc15-java-refactoring-funnyqt.mm.java j)
+(generate-ecore-model-functions
+ "TypeGraphBasic.ecore" ttc15-java-refactoring-funnyqt.mm.pg pg)
 
 (load-ecore-resource "TypeGraphBasic.ecore")
 
@@ -77,12 +78,12 @@
    :to   [tc 'TClass {:tName name}])
   (get-tfield
    :from [f 'Field]
-   :id   [name (j/name f)]
-   :to   [tf 'TField {:tName name}]
+   :id   [n (j/name f)]
+   :to   [tf 'TField {:tName n}]
    (pg/->add-fields! *tg* tf))
   (get-tfieldsig
    :from [f 'Field]
-   :id   [sig (str (type-name (get-type f)) (j/name f))]
+   :id   [sig (str (type-name (get-type f)) " " (j/name f))]
    :to   [tfs 'TFieldSignature {:field (get-tfield f)
                                 :type  (type2tclass (get-type f))}])
   (field2tfielddef
@@ -91,8 +92,8 @@
    :to   [tfd 'TFieldDefinition {:signature (get-tfieldsig f)}])
   (get-tmethod
    :from [m 'ClassMethod]
-   :id   [name (j/name m)]
-   :to   [tm 'TMethod {:tName name}]
+   :id   [n (j/name m)]
+   :to   [tm 'TMethod {:tName n}]
    (pg/->add-methods! *tg* tm))
   (get-tmethodsig
    :from [m 'ClassMethod]

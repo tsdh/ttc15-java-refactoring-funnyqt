@@ -40,12 +40,12 @@
 
 This paper describes the FunnyQT\footnote{\url{http://funnyqt.org}}
 ~\cite{Horn2013MQWFQ,funnyqt-icgt15} solution of the TTC 2015 Java Refactoring
-Case~\cite{java-refactoring-case-desc}.
-%% TODO: Which core/ext tasks?
-The solution project is available on
+Case~\cite{java-refactoring-case-desc}.  It solves all core and exception tasks
+with the exception of \emph{Extension~3: Detecting Refactoring Conflicts}.  The
+solution project is available on
 Github\footnote{\url{https://github.com/tsdh/ttc15-java-refactoring-funnyqt}},
-and it is set up for easy reproduction on a SHARE
-image\footnote{\url{FIXME: add SHARE URL}}.
+and it is set up for easy reproduction on a SHARE image\footnote{FIXME: Add
+  SHARE image}.
 
 FunnyQT is a model querying and transformation library for the functional Lisp
 dialect Clojure\footnote{\url{http://clojure.org}}.  Queries and
@@ -98,6 +98,209 @@ used.
 \section{Solution Description}
 \label{sec:solution-description}
 
+\subsection{Step 1: Java Code to Program Graph}
+\label{sec:step-1:java-to-pg}
+
+The first step in the transformation chain is to create an instance model
+conforming to the program graph metamodel predefined in the case description
+from the Java source code that should be subject to refactoring.  The FunnyQT
+solution does that in two substeps.
+
+\begin{compactenum}[(a)]
+\item Parse the Java source code into a model conforming to the EMFText
+  JaMoPP\footnote{\url{http://www.jamopp.org/index.php/JaMoPP}} metamodel.
+\item Transform the JaMoPP model to a program graph metamodel using a FunnyQT
+  out-place transformation.
+\end{compactenum}
+
+Step (a) is implemented in the solution namespace
+\emph{ttc15-java-refactoring-funnyqt.jamopp}.  It simply sets up JaMoPP and
+defines two functions \code|parse-directory| and \code|save-java-rs|.  The
+former parses all Java files contained in the given directory and returns a
+resource set representing the sources' abstract syntax graph conforming to the
+JaMoPP metamodel.  The second function receives such a resource set and saves
+it back as Java code.  Both just access JaMoPP built-in functionality.
+
+Step (b) is implemented as a FunnyQT out-place transformation in the solution
+namespace \emph{ttc15-java-refactoring-funnyqt.jamopp2pg}.  It creates a
+program graph model from the JaMoPP model.
+
+The transformation also minimizes the target program graph.  The source JaMoPP
+model contains the complete syntax graph of the parsed Java sources including
+all dependencies of those.  I.e., if the parsed Java program uses the
+\textsf{java.util.List} interface, then the JaMoPP model also contains this
+interface's ASG, i.e., all its declared methods, its super-interfaces, etc.
+The program graph created by the transformation only contains \textsf{TClass}
+elements for the Java classes parsed from source code and direct dependencies
+used as field type or method parameter or method return type.  \textsf{TMember}
+elements are only created for the methods of directly parsed Java classes, and
+then only for those members that are not static because the case description
+explicitly excluded statics.  As a result, the program graph contains only the
+information relevant to the refactorings and is reasonably small so that it can
+be visualized which is nice especially for debugging.
+
+The FunnyQT out-place transformation API used for implementing this task is
+quite similar to ATL or QVT Operational Mappings.  There are mapping rules
+which receive one or many JaMoPP source elements and create one or many target
+program graph elements.
+
+A cutout of the transformation depicting the rules responsible for transforming
+fields is given in the following listing.  The transformation receives one
+single source model \code|jamopp| and one single target model \code|pg|.
+
+\begin{clojurecode}
+(deftransformation jamopp2pg [[jamopp] [pg]]
+  ...
+  (field2tfielddef
+   :from [f 'Field]
+   :when (not (static? f))
+   :to   [tfd 'TFieldDefinition {:signature (get-tfieldsig f)}])
+  (get-tfieldsig
+   :from [f 'Field]
+   :id   [sig (str (type-name (get-type f)) " " (j/name f))]
+   :to   [tfs 'TFieldSignature {:field (get-tfield f)
+                                :type  (type2tclass (get-type f))}])
+  (get-tfield
+   :from [f 'Field]
+   :id   [n (j/name f)]
+   :to   [tf 'TField {:tName n}]
+   (pg/->add-fields! *tg* tf))
+  (type2tclass
+   :from [t 'Type]
+   :disjuncts [class2tclass primitive2tclass])
+  ...)
+\end{clojurecode}
+
+For each non-static field (declared by a user-defined class) in the JaMoPP
+model, the \code|field2tfielddef| rule creates a \textsf{TFieldDefinition}
+element in the program graph.  The signature of this \textsf{TFieldDefinition}
+is set to the result of calling the \code|get-tfieldsig| rule.
+
+This rule uses the \code|:id| feature to implement a n:1 semantics.  Only for
+each unique string \code|sig| created by concatenating the field's type and
+name, a new \textsf{TFieldSignature} is created.  If the rule is called
+thereafter for some other field with the same type and name, the existing field
+signature created at the first call is returned.  The field signature's
+\textsf{field} and \textsf{type} references pointing to a \textsf{TField} and a
+\textsf{TClass} respectively are set by calling the \code|get-tfield| and
+\code|type2tclass| rules.
+
+The \code|get-tfield| is again a n:1 rule creating a \textsf{TField} element
+for every unique field name.  The \code|type2tclass| rule is a disjunctive rule
+that delegates to either \code|class2tclass| or \code|primitive2tclass| to
+create a (or retrieve an existing) \textsf{TClass} for a given JaMoPP class or
+primitive type.
+
+Note that in the rules above, the name of a field is retrieved using
+\code|(j/name f)|.  This is because the solution lets FunnyQT generate
+metamodel-specific APIs for both the JaMoPP and program graph metamodels into
+two namespaces which are required with the aliases \code|j| and \code|pg|
+respectively.  These generated APIs contain attribute accessor functions
+(e.g. \code|(j/name x)| and \code|(j/set-name! x val)|), reference accessors
+(e.g., \code|(pg/->access tdef)|, \code|(pg/->set-access! tdef accs)|,
+\code|(pg/->add-access! tdef acc)|, and \code|(pg/->remove-access! tdef acc)|),
+element constructors (e.g., \code|(pg/create-TClass! model)|), and element
+sequence functions (e.g., \code|(pg/all-TClasses model)|).  The functions of
+the generated APIs allow for a bit more conciseness and a better readability
+than the generic accessor functions.  With the latter, the name of a JaMoPP
+field would be retrieved using \code|(eget f :name)|.
+
+In total, the transformation consists of 10 rules summing up to 71 lines of
+code.  In addition, there are five simple helper functions like \code|static?|,
+\code|get-type|, and \code|type-name| that have been used in the above rules
+already.
+
+\bigskip{}
+
+A FunnyQT transformation like the one briefly discussed above returns a map of
+traceability information.  This map's keys are the transformation rules, and
+the values are maps from the respective rule's input elements to its output
+elements.  For the third step of the overall transformation, i.e., the
+back-propagation of the changes performed in the program graph to the Java
+source code, we only need to be able to get from a program graph
+\textsf{TClass} to the corresponding JaMoPP \textsf{Class}, from a program
+graph \textsf{TFieldDefinition} to the corresponding JaMoPP \textsf{Field}, and
+from a program graph \textsf{TMethodDefinition} to the corresponding JaMoPP
+\textsf{ClassMethod}.  I.e., we need an inverse lookup from target to source
+elements, and we are not interested in which rule created what element.  Thus,
+the following helper function \code|prepare-pg2jamopp-ma| creates such an
+inverse lookup map from the given transformation trace.
+
+\begin{clojurecode}
+(defn prepare-pg2jamopp-map [trace]
+  (atom (into {} (comp (map #(% trace))
+                       (map set/map-invert))
+              [:class2tclass :field2tfielddef :method2tmethoddef])))
+\end{clojurecode}
+
+The function also wraps the inverse lookup map in a Clojure \emph{atom}.  All
+Clojure data structures such as lists, vectors, or maps are immutable.
+However, during (multi-step) refactoring we need to be able to update the
+inverse lookup map.  Atoms are atomically mutable references to immutable data
+structures.  Thus, during refactoring, the reference to the inverse lookup map
+can be changed atomically to a new map reflecting an updated inverse lookup
+map.
+
+
+\subsection{Step~2: Refactoring of the Program Graph}
+\label{sec:step-2:refactoring-pg}
+
+The refactorings are implemented in the solution namespace
+\emph{ttc15-java-refactoring-funnyqt.refactor} using FunnyQT in-place
+transformation rules which combine patterns to be matched in the model with
+actions to be applied to the matched elements.
+
+Before discussing the rules, the following two helper functions need to be
+discussed.
+
+\begin{clojurecode}
+(defn find-tclass [pg qn]
+  (first (filter #(= qn (pg/tName %))
+                 (pg/all-TClasses pg))))
+
+(defn find-tmethodsig [pg method-name param-qns]
+  (let [pclasses (mapv (partial find-tclass pg) param-qns)]
+    (first (filter #(and (-> % pg/->method pg/tName (= method-name))
+                         (= pclasses (pg/->paramList %)))
+                   (pg/all-TMethodSignatures pg)))))
+\end{clojurecode}
+
+The function \code|find-tclass| receives the program graph \code|pg| and a
+qualified name \code|qn| and returns the \textsf{TClass} with this qualified
+name.  \code|find-tmethodsig| receives the program graph \code|pg|, a
+\code|method-name|, and a sequence of the method's parameter qualified names
+\code|param-qns|.  It returns the \code|TMethodSignature| specified by this
+combination of method name and parameter types.
+
+These two functions are called by the solution's \textsf{TestInterface}
+implementation class in order to have the actual refactoring rules parametrized
+with program graph elements instead of the ARTE classes
+\code|Pull_Up_Refactoring| and the like.
+
+
+\paragraph{Pull Up Member.}
+
+The case description requests \emph{pull-up method} as first refactoring core
+task.  However, with respect to the program graph metamodel, there is actually
+no difference in pulling up a method (\textsf{TMethodDefinition}) or a field
+(\textsf{TFieldDefinition}), i.e., it is possible to define the refactoring
+more general as \emph{pull-up member} (\textsf{TMember}) and have it work for
+both fields and methods.  This is what the FunnyQT solution does.
+
+
+
+
+
+\paragraph{Create Superclass.}
+
+\paragraph{Extract Superclass.}
+
+
+
+\subsection{Step~3: Program Graph to Java Code}
+\label{sec:step-3:pg-to-java}
+
+
 
 \section{Evaluation}
 \label{sec:evaluation}
@@ -119,4 +322,4 @@ used.
 %%% TeX-command-extra-options: "-shell-escape"
 %%% End:
 
-%  LocalWords:  parallelizes
+%  LocalWords:  parallelizes traceability
