@@ -26,7 +26,8 @@
 
 \begin{abstract}
   This paper describes the FunnyQT solution to the TTC 2015 Java Refactoring
-  transformation case.  %% TODO: Note which core/ext tasks
+  transformation case.  The solution solves all core tasks and also the
+  extension tasks 1 and 2.
 
   FunnyQT is a model querying and model transformation library for the
   functional Lisp-dialect Clojure providing a comprehensive and efficient
@@ -714,14 +715,139 @@ obvious reason why it shouldn't earn the maximum of 60 points here.
 
 \paragraph{Performance (max. 10 points).}
 
+According to ARTE, the FunnyQT solution runs in less than a tenth of a second
+for all test cases on an off-the-shelf laptop except for \textit{pub\_pum3\_1}
+where the execution takes 0.67 seconds.  However, when running only that test
+(\code|execute --test pub_pum3_1|) its execution time is measured with 0.02
+seconds which matches the execution time of the other cases.  So this single
+outlier with \code|execute --all| seems to be a GC hiccup or something alike.
+However, the execution times for the toy examples tested by ARTE are not very
+significant anyhow.  It would be very interesting to have tests covering larger
+code bases on which multiple refactorings depending on each other are
+performed.
 
+In any case, the execution time of the actual refactorings on the program graph
+and the back-propagation into the JaMoPP model are negligible when being
+compared to the time JaMoPP needs to parse the Java sources, resolve references
+in the created model, and serialize the model back to Java again.
+
+Since the performance score will be assessed in comparison to other solutions,
+no value can be suggested here.
+
+
+\paragraph{Quality (max. 30 points).}
+
+The quality of a solution should be assessed according to the following six
+criteria.
+
+\begin{compactdesc}
+\item[Comprehensibility] FunnyQT is designed with the goal to appeal both to
+  functional programmers with a slight MDE knowledge and MDE experts with a
+  slight Clojure/functional programming background.  Its embedded DSLs for
+  out-place transformations and pattern matching/in-place transformations which
+  were used for solving this task shouldn't be too hard to understand for
+  anyone familiar with ATL/QVT Operational Mappings and other in-place
+  transformation languages such as Henshin or GrGen.NET.  But of course,
+  FunnyQT is a Clojure library and thus some fundamental Clojure knowledge is a
+  prerequisite for using it successfully.
+
+  In the refactoring rules, some comprehensibility has been traded off for
+  conciseness by using FunnyQT's pattern inheritance feature (\code|:extends|).
+  An extending pattern isn't comprehensible without the extended pattern
+  because the inherited bindings and constraints aren't visible.  However, this
+  isn't different to subclassing in object-orientation.
+\item[Readability] FunnyQT is no tool but a Clojure library.  As such, it
+  doesn't (need to) provide its own toolset but any Clojure tooling can be
+  reused.  This includes editors/IDEs (there are sophisticated Clojure plugins
+  providing highlighting, auto-completion, macro-expansion, etc. for Eclipse,
+  IntelliJ, NetBeans, Emacs, Vim, and there are also specialized Clojure IDEs
+  such as Cursive or LightTable), debuggers, and build/dependency management
+  tools.  Many Java/JVM tools such as profilers are also applicable to Clojure
+  and thus to FunnyQT.
+
+  The few tools provided by FunnyQT are for example the interactive rule
+  application GUI shown in figure \vref{fig:interactive-rule-application} and a
+  similar GUI for interactive state space exploration.
+\item[Communication with the user] FunnyQT's error messages are as detailed as
+  possible.  For example, if a pattern contains \code|x<X> -<:y>-> y| but
+  according to the metamodel, \textsf{X} doesn't have a reference \textsf{y},
+  the resulting exception would have the message \emph{No such structural
+    feature y at \#<X@7fa1bf>}.  In case the \textsf{X}-element has an
+  ID-attribute, that would be printed instead of the hash-code.  On the
+  negative side, Clojure and thus FunnyQT is dynamically typed so type errors
+  occur at runtime whereas they could be identified statically at compile-time.
+\item[Robustness] The solution's Java-to-Program-Graph transformation
+  explicitly excludes elements that are out-of-scope.  For example, static
+  members don't make it into the program graph and thus aren't subject to
+  refactorings.
+
+  With respect to robustness in erroneous environments one can say that the
+  solution uses Clojure's standard build and dependency management tool
+  Leiningen\footnote{\url{http://leiningen.org}} which makes sure that it is
+  always run in a correct environment, e.g., using the correct versions of
+  Clojure, FunnyQT, and all their dependencies.
+\item[Extensibility] Adding new refactorings to the solution is easy.  Adding
+  support for Java features which the case description explicitly excludes such
+  as visibility modifiers and/or generic types would require modifications of
+  the program graph metamodel and therefore modifications of the
+  Java-to-Program-Graph transformation and the refactoring rules but this is
+  true for any solution.  At least with the inclusion of visibility modifiers,
+  only the FunnyQT's \code|accessible-from?| predicate would need to be touched
+  when adapting the refactoring rules.
+\item[Debugging] Clojure (and thus FunnyQT) support interactive development,
+  i.e., a single JVM is started and connected to the editing environment.
+  Existing functions, transformations, patterns, and rules can be refined and
+  new ones be written, and those can be instantly compiled, loaded, and tested
+  without the usual edit-compile-restart cycle inherent to languages such as
+  Java or C.  This makes development of Clojure programs and FunnyQT
+  transformations extremely efficient.
+
+  In case of malfunctions, typical step-wise debuggers are available for
+  Clojure/FunnyQT, too.  And FunnyQT's interactive rule application GUI which
+  also provides visualization support for the model under transformation
+  (complete or only the surrounding of the matched elements) is also a great
+  help for debugging rules.
+\end{compactdesc}
+
+
+\paragraph{Extensions (max. 15 points).}
+
+The FunnyQT solution provides runnable implementations for the extensions 1
+(\emph{extract superclass}) and 2 (\emph{propose refactoring}).  Extension 3
+(\emph{detect refactoring conflicts}) hasn't been solved practically but an
+idea for its solution has been sketched.  However, that requires some further
+additions to FunnyQT's state space generation facility.  So the FunnyQT
+solution should score at least 10 out of 15 points for the extension task
+score.
 
 
 \section{Conclusion}
 \label{sec:conclusion}
 
+This paper discussed the FunnyQT solution to the TTC 2015 Java Refactoring
+case.  The solution solves all core tasks and also two out of three extension
+tasks, namely extensions 1 (\emph{extract superclass}) and 2 (\emph{propose
+  refactoring}).
 
+The solution is correct and complete.  All tests performed by the ARTE testing
+framework pass.
 
+The solution is also quite concise.  The functions for setting up JaMoPP and
+using it to parse and serialize Java code amount to less than 30 lines of code.
+The transformation from JaMoPP model to program graph including all helpers sum
+up to less than 100 LOC.  The actual refactoring rules including all helpers
+amount to less than 120 LOC.  And finally, the \textsf{TestInterface}
+implementation calling the solution's transformation and rules consists of less
+than 140 LOC.  All numbers omit empty lines, comments, and namespace
+declarations, e.g., Java package and import statements and their Clojure
+counterparts.
+
+The performance of the solution is also good.  All but one test case are
+executed in small fractions of a second on an off-the-shelf laptop, and the
+single test which is a bit more expensive executes in still far below one
+second.  However, all tests performed by ARTE are executed on very small toy
+programs so the significance of the measured execution times with respect to
+real-world code bases is questionable.
 
 \bibliographystyle{eptcs}
 \bibliography{ttc-java-refactoring}

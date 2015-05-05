@@ -49,35 +49,15 @@ public class TestInterfaceImpl implements TestInterface {
     private Object pgToJamoppMapAtom;
     private ArrayList<IFn> synchronizeFns = new ArrayList<IFn>();
     private String programPath;
-    private String testName;
 
     public String getPluginName() {
-	System.out.println("getPluginName()");
 	return "FunnyQT";
     }
 
     public boolean usesProgramGraph() {
-	System.out.println("usesProgramGraph()");
 	return true;
     }
 
-    public void copyDir(String from, String baseDir, String subDir) {
-	try {
-	    File bd = new File(baseDir);
-	    if (!bd.exists()) bd.mkdir();
-	    File copyFolder = new File(baseDir, subDir);
-	    if (copyFolder.exists() && copyFolder.isDirectory()) {
-		System.out.println("Deleting folder " + copyFolder.getPath());
-		copyFolder.delete();
-	    }
-	    copyFolder.mkdir();
-	    System.out.println("Copying " + from + " to " + copyFolder.getPath());
-	    Process p = Runtime.getRuntime().exec("cp -R " + from + " " + copyFolder.getPath());
-	    p.waitFor();
-	} catch (Exception e) {
-	    e.printStackTrace();
-	}
-    }
     public boolean createProgramGraph(String path) {
 	programPath = path;
 	System.out.println("createProgramGraph(" + path + ")");
@@ -88,13 +68,9 @@ public class TestInterfaceImpl implements TestInterface {
 	return true;
     }
 
-    public void setProgramLocation(String path) {
-	System.out.println("setProgramLocation(" + path + ")");
-	jamoppRS = PARSE_DIRECTORY.invoke(path);
-    }
+    public void setProgramLocation(String path) {}
 
     public boolean applyPullUpMethod(Pull_Up_Refactoring pur) {
-	testName = pur.getName();
 	String tClassQN = pur.getParent().getPackage() + "." + pur.getParent().getClass_name();
 	String tMethodName = pur.getMethod().getMethod_name();
 	EList<Java_Class> javaClasses = pur.getMethod().getParams();
@@ -138,7 +114,6 @@ public class TestInterfaceImpl implements TestInterface {
     }
 
     public boolean applyCreateSuperclass(Create_Superclass_Refactoring csr) {
-	testName = csr.getName();
 	List<Object> classes = new ArrayList<Object>();
 	System.out.print("applyCreateSuperClass([");
 	boolean first = true;
@@ -174,15 +149,11 @@ public class TestInterfaceImpl implements TestInterface {
 
     public boolean synchronizeChanges() {
 	try {
-	    //copyDir(programPath, "/home/horn/tmp/JR/", testName + "-before/");
-	    System.out.println("synchronizeChanges(): "
-			       + synchronizeFns.size() + " changes to be applied");
+	    System.out.println("synchronizeChanges(): " + synchronizeFns.size() + " changes to be applied");
 	    for (IFn synchronizer : synchronizeFns) {
 		synchronizer.invoke(jamoppRS);
 	    }
 	    SAVE_JAVA_RESOURCE_SET.invoke(jamoppRS);
-	    //Thread.sleep(1000000);
-	    //copyDir(programPath, "/home/horn/tmp/JR/", testName + "-after/");
 	    return true;
 	} catch (Exception e) {
 	    e.printStackTrace();
