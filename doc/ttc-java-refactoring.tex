@@ -458,10 +458,10 @@ The first version of the rule matches a \textsf{TSignature} \code|sig| and all
 classes with no superclass which define this signature.  The constraint defines
 that there must be at least two such classes.  This ensures that a create
 superclass refactoring is only suggested to the user if there are at least two
-classes with duplicate features which could be pulled up in further refactoring
-steps.  Lastly, the pattern extends the pattern of the second version of
-\code|create-superclass| and thus inherits the additional binding and
-constraint defined in there.
+classes with duplicate features which could probably be pulled up in further
+refactoring steps.  Lastly, the pattern extends the pattern of the second
+version of \code|create-superclass| and thus inherits the additional
+\code|:let| binding and \code|:when| constraint defined in there.
 
 The rule's action in both versions is to call \code|do-create-superclass!|
 which is defined as given below.
@@ -533,9 +533,16 @@ to propose a refactoring.
 
 Its pattern extends the pattern of the first variant of
 \code|create-superclass|.  Remember that this pattern has been defined in such
-a way that it matches only a set of classes which have common features, i.e.,
-classes for which \code|pull-up-member| will be applicable after creating a
-superclass.
+a way that it matches only a set of at least two classes which have common
+features, i.e., classes for which \code|pull-up-member| will probably be
+applicable after creating a superclass.  Note that this is slightly incorrect:
+\code|extract-superclass| matches a set of classes with common features where
+none of them turns out as actually pullable, too.  However, since the
+\code|accessible-from?| predicate requires an existing \textsf{TClass} element
+in its current form, the specification of the constraint \emph{there are common
+  features and at least one of them would be pullable into a new superclass if
+  that were created} would require more code.  Thus we have sacrificed a bit
+correctness in some corner-cases for conciseness of the solution.
 
 The rule's actions then simply call \code|create-superclass|, and then call
 \code|pull-up-member| for each member whose signature is defined by all
@@ -544,10 +551,12 @@ subclasses of the newly created superclass.
 
 \paragraph{Propose Refactoring (Extension~2).}
 
-The rules \code|pull-up-member|, \code|create-superclass|, and
-\code|extract-superclass| discussed above already have overloaded versions (or
-just a single version) which match all elements relevant for the corresponding
-refactoring themselves.
+\begin{sloppypar}
+  The rules \code|pull-up-member|, \code|create-superclass|, and
+  \code|extract-superclass| discussed above already have overloaded versions
+  (or just a single version) which match all elements relevant for the
+  corresponding refactoring themselves.
+\end{sloppypar}
 
 FunnyQT provides a rule combinator \code|interactive-rule| which receives one
 or many rules and returns a new rule which shows to the user all applicable
@@ -580,6 +589,58 @@ the \emph{View model} and \emph{Show match} buttons, visualizations of the
 complete model or only the parts around the currently selected match can be
 shown.
 
+This interactive rule application is automatically started when running
+\code|lein test| in the solution project.  The sources subject to the
+refactoring are given in the following listing.
+
+\begin{minted}[fontsize=\fontsize{8}{8}]{java}
+// file foo/C1.java
+package foo;
+class C1 {
+    String f1;
+    String method1() {return f1;}
+    String method2() {}
+}
+// file foo/C2.java
+package foo;
+class C2 {
+    String f1;
+    String method1() {return f1;}
+    String method2() {}
+}
+\end{minted}
+
+This will bring up the exact rule selection dialog shown in figure
+\vref{fig:interactive-rule-application}.  If one chooses the
+\code|extract-superclass| rule, it is applied once and then no further
+refactorings are possible.  If one chooses the \code|create-superclass| rule
+instead, afterwards the \code|pull-up-member| rule can be applied three times
+before no refactorings are applicable anymore.
+
+In any case, the final refactored Java program equals the one in the following
+listing.
+
+\begin{minted}[fontsize=\fontsize{8}{8}]{java}
+// file foo/C1.java
+package foo;
+class C1 extends ext.NewParent10460 {}
+// file foo/C2.java
+package foo;
+class C2 extends ext.NewParent10460 {}
+// file ext/NewParent10460.java
+package ext;
+public class NewParent10460 {
+    String f1;
+    String method1() {return f1;}
+    String method2() {}
+}
+\end{minted}
+
+A new parent class \textsf{NewParent10460}\footnote{The number varies.} has
+been created in the package \textsf{ext} and set as superclass of \textsf{C1}
+and \textsf{C2}.  All members that have been duplicated in \textsf{C1} and
+\textsf{C2} previously are now defined in \textsf{NewParent10460}.
+
 
 \paragraph{Detecting Refactoring Conflicts (Extension~3).}
 
@@ -590,7 +651,7 @@ pairs using a static analysis in the general case.
 Instead, FunnyQT provides facilities for state space generation and
 exploration.  The state space graph with respect to a given set of refactoring
 rules could be computed and analyzed to determine which rule or sequence of
-rules makes some other rule inapplicable to some set of elements.
+rules makes some other rule inapplicable.
 
 However, the state space approach doesn't work in this concrete case, too.  The
 reason is that the state space generation internally copies the program graph
@@ -607,10 +668,8 @@ The core \code|pull-up-member| and \code|create-superclass| rules both return
 closures which perform the refactoring's actions in the JaMoPP model when ARTE
 calls the \textsf{TestInterface}'s \code|synchronizeChanges()| method.
 Thereafter, the JaMoPP model needs to be saved to reflect those changes also in
-the Java source code files.
-
-This is what \code|synchronizeChanges()| method of the solution's
-\textsf{TestInterface} implementation class does.
+the Java source code files.  This is what \code|synchronizeChanges()| method of
+the solution's \textsf{TestInterface} implementation class does.
 
 \begin{minted}[fontsize=\fontsize{8}{8}]{java}
     public boolean synchronizeChanges() {
@@ -640,6 +699,22 @@ the resource set is saved.  \code|SAVE_JAVA_RESOURCE_SET| is a reference to the
 
 \section{Evaluation}
 \label{sec:evaluation}
+
+In this section, the FunnyQT solution is evaluated according to the criteria
+suggested in the case description.
+
+
+\paragraph{Correctness and completeness (max. 60 points).}
+
+The FunnyQT solution passes all test cases provided by the ARTE testing
+framework thus it seems to be correct and complete with respect to the
+restricted subset of Java detailed in the case description.  Thus, there is no
+obvious reason why it shouldn't earn the maximum of 60 points here.
+
+
+\paragraph{Performance (max. 10 points).}
+
+
 
 
 \section{Conclusion}
