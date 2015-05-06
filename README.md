@@ -6,10 +6,12 @@ This project contains the [FunnyQT](http://funnyqt.org) solution to the
 
 ## Usage
 
-To run the solution in ARTE, you need to get the `lein` script from the
+First, you need to get the `lein` script from the
 [Leiningen homepage](http://leiningen.org/) and put in on your `PATH`.
 
-Then just run `lein uberjar` in the project directory.  Leiningen will
+### Running the ARTE tests
+
+Simply run `lein uberjar` in the project directory.  Leiningen will
 automatically fetch all required dependencies such as Clojure and FunnyQT and
 install them into your local maven repository, and then build and package the
 project.
@@ -21,8 +23,9 @@ as solution in ARTE.
 
 ### Interactive refactoring
 
-To let the solution propose refactorings, just run `lein test` on the command
-line.  This will propose refactorings for the java classes in `test-src/`.
+To let the solution propose refactorings (Extension 2), just run `lein test` on
+the command line.  This will propose refactorings for the java classes in
+`test-src/`.
 
 ## License
 
