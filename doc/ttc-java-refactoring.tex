@@ -12,6 +12,7 @@
 \newminted{clojure}{fontsize=\fontsize{8}{8},linenos,numbersep=3pt,numberblanklines=false}
 \newmintinline{clojure}{fontsize=\small}
 \newcommand{\code}{\clojureinline}
+\VerbatimFootnotes
 
 \title{Solving the TTC Java Refactoring Case with FunnyQT}
 \author{Tassilo Horn
@@ -45,8 +46,8 @@ Case~\cite{java-refactoring-case-desc}.  It solves all core and exception tasks
 with the exception of \emph{Extension~3: Detecting Refactoring Conflicts}.  The
 solution project is available on
 Github\footnote{\url{https://github.com/tsdh/ttc15-java-refactoring-funnyqt}},
-and it is set up for easy reproduction on a SHARE image\footnote{FIXME: Add
-  SHARE image}.
+and it is set up for easy reproduction on a SHARE image\footnote{The SHARE
+  image name is \verb|ArchLinux64_TTC15-FunnyQT|}.
 
 FunnyQT is a model querying and transformation library for the functional Lisp
 dialect Clojure\footnote{\url{http://clojure.org}}.  Queries and
