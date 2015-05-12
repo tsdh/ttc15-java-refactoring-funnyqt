@@ -39,7 +39,7 @@
 (defn user-defined? [cc]
   (-> cc eresource .getURI .isFile))
 
-(deftransformation jamopp2pg [[jamopp] [pg]]
+(deftransformation jamopp2pg [^:in jamopp ^:out pg]
   (main
    []
    (binding [*tg* (pg/create-TypeGraph! pg)]
