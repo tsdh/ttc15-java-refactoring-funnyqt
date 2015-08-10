@@ -52,7 +52,7 @@
    :disjuncts [field2tfielddef method2tmethoddef])
   (class2tclass
    :from [c 'Class]
-   :to [tc 'TClass {:tName (type-name c)}]
+   :to   [tc 'TClass {:tName (type-name c)}]
    (pg/->add-classes! *tg* tc)
    (when (user-defined? c)
      (when-let [super-ref (j/->extends c)]
