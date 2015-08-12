@@ -68,6 +68,14 @@ this case, FunnyQT's out-place and in-place transformation DSLs have been used.
 \section{Solution Description}
 \label{sec:solution-description}
 
+The solution consists of three steps:
+\begin{compactenum}[1.]
+\item Converting the Java code to a program graph
+\item Refactoring the program graph
+\item Propagating changes in the program graph back to the Java code
+\end{compactenum}
+All steps are discussed in the following sections.
+
 \subsection{Step 1: Java Code to Program Graph}
 \label{sec:step-1:java-to-pg}
 
@@ -75,39 +83,32 @@ The first step in the transformation chain is to create an instance model
 conforming to the program graph metamodel predefined in the case description
 from the Java source code that should be subject to refactoring.  The FunnyQT
 solution does that in two substeps.
-
 \begin{compactenum}[(a)]
 \item Parse the Java source code into a model conforming to the EMFText
   JaMoPP\footnote{\url{http://www.jamopp.org/index.php/JaMoPP}} metamodel.
 \item Transform the JaMoPP model to a program graph metamodel using a FunnyQT
   out-place transformation.
 \end{compactenum}
-
 Step (a) is implemented in the solution namespace
 \emph{ttc15-java-refactoring-funnyqt.jamopp}.  It simply sets up JaMoPP and
-defines two functions \code|parse-directory| and \code|save-java-rs|.  The
-former parses all Java files contained in the given directory and returns a
-resource set representing the sources' abstract syntax graph conforming to the
-JaMoPP metamodel.  The second function receives such a resource set and saves
-it back as Java code.  Both just access JaMoPP built-in functionality.
+defines two functions, one for parsing a source tree to a JaMoPP model, and a
+second one to synchronize the changes in a JaMoPP model back to the source
+tree.  Both just access JaMoPP built-in functionality.
 
-Step (b) is implemented as a FunnyQT out-place transformation in the solution
-namespace \emph{ttc15-java-refactoring-funnyqt.jamopp2pg}.  It creates a
-program graph model from the JaMoPP model.
+Step (b) is implemented as a FunnyQT out-place transformation.  It creates a
+program graph from the JaMoPP model.
 
 The transformation also minimizes the target program graph.  The source JaMoPP
 model contains the complete syntax graph of the parsed Java sources including
-all dependencies of those.  I.e., if the parsed Java program uses the
-\textsf{java.util.List} interface, then the JaMoPP model also contains this
-interface's ASG, i.e., all its declared methods, its super-interfaces, etc.
-The program graph created by the transformation only contains \textsf{TClass}
-elements for the Java classes parsed from source code and direct dependencies
-used as field type or method parameter or method return type.  \textsf{TMember}
-elements are only created for the methods of directly parsed Java classes, and
-then only for those members that are not static because the case description
-explicitly excluded statics.  As a result, the program graph contains only the
-information relevant to the refactorings and is reasonably small so that it can
-be visualized which is nice especially for debugging.
+all their dependencies.  In contrast, the program graph created by the
+transformation only contains \textsf{TClass} elements for the Java classes
+parsed from source code and direct dependencies used as field type or method
+parameter or method return type.  \textsf{TMember} elements are only created
+for the methods of directly parsed Java classes, and then only for those
+members that are not static because the case description explicitly excludes
+statics.  As a result, the program graph contains only the information relevant
+to the refactorings and is reasonably small so that it can be visualized which
+is nice especially for debugging purposes.
 
 The FunnyQT out-place transformation API used for implementing this task is
 quite similar to ATL or QVT Operational Mappings.  There are mapping rules
@@ -141,10 +142,10 @@ single source model \code|jamopp| and one single target model \code|pg|.
   ...)
 \end{clojurecode}
 
-For each non-static field (declared by a user-defined class) in the JaMoPP
-model, the \code|field2tfielddef| rule creates a \textsf{TFieldDefinition}
-element in the program graph.  The signature of this \textsf{TFieldDefinition}
-is set to the result of calling the \code|get-tfieldsig| rule.
+For each non-static field in the JaMoPP model, the \code|field2tfielddef| rule
+creates one \textsf{TFieldDefinition} element in the program graph.  The
+signature of this \textsf{TFieldDefinition} is set to the result of calling the
+\code|get-tfieldsig| rule.
 
 This rule uses the \code|:id| feature to implement a n:1 semantics.  Only for
 each unique string \code|sig| created by concatenating the field's type and
@@ -153,63 +154,17 @@ thereafter for some other field with the same type and name, the existing field
 signature created at the first call is returned.  The field signature's
 \textsf{field} and \textsf{type} references pointing to a \textsf{TField} and a
 \textsf{TClass} respectively are set by calling the \code|get-tfield| and
-\code|type2tclass| rules.
-
-The \code|get-tfield| is again a n:1 rule creating a \textsf{TField} element
-for every unique field name.  The \code|type2tclass| rule is a disjunctive rule
-that delegates to either \code|class2tclass| or \code|primitive2tclass| to
-create a (or retrieve an existing) \textsf{TClass} for a given JaMoPP class or
-primitive type.
-
-Note that in the rules above, the name of a field is retrieved using
-\code|(j/name f)|.  This is because the solution lets FunnyQT generate
-metamodel-specific APIs for both the JaMoPP and program graph metamodels into
-two namespaces which are required with the aliases \code|j| and \code|pg|
-respectively.  These generated APIs contain attribute accessor functions
-(e.g. \code|(j/name x)| and \code|(j/set-name! x val)|), reference accessors
-(e.g., \code|(pg/->access tdef)|, \code|(pg/->set-access! tdef accs)|,
-\code|(pg/->add-access! tdef acc)|, and \code|(pg/->remove-access! tdef acc)|),
-element constructors (e.g., \code|(pg/create-TClass! model)|), and element
-sequence functions (e.g., \code|(pg/all-TClasses model)|).  The functions of
-the generated APIs allow for a bit more conciseness and a better readability
-than the generic accessor functions.  With the latter, the name of a JaMoPP
-field would be retrieved using \code|(eget f :name)|.
+\code|type2tclass| rules which are not shown because of space limitations.
 
 In total, the transformation consists of 10 rules summing up to 71 lines of
 code.  In addition, there are five simple helper functions like \code|static?|,
 \code|get-type|, and \code|type-name| that have been used in the above rules
 already.
 
-\bigskip{}
-
 A FunnyQT transformation like the one briefly discussed above returns a map of
-traceability information.  This map's keys are the transformation rules, and
-the values are maps from the respective rule's input elements to its output
-elements.  For the third step of the overall transformation, i.e., the
-back-propagation of the changes performed in the program graph to the Java
-source code, we only need to be able to get from a program graph
-\textsf{TClass} to the corresponding JaMoPP \textsf{Class}, from a program
-graph \textsf{TFieldDefinition} to the corresponding JaMoPP \textsf{Field}, and
-from a program graph \textsf{TMethodDefinition} to the corresponding JaMoPP
-\textsf{ClassMethod}.  I.e., we need an inverse lookup from target to source
-elements, and we are not interested in which rule created what element.  Thus,
-the following helper function \code|prepare-pg2jamopp-ma| creates such an
-inverse lookup map from the given transformation trace.
-
-\begin{clojurecode}
-(defn prepare-pg2jamopp-map [trace]
-  (atom (into {} (comp (map #(% trace))
-                       (map set/map-invert))
-              [:class2tclass :field2tfielddef :method2tmethoddef])))
-\end{clojurecode}
-
-The function also wraps the inverse lookup map in a Clojure \emph{atom}.  All
-Clojure data structures such as lists, vectors, or maps are immutable.
-However, during (multi-step) refactoring we need to be able to update the
-inverse lookup map.  Atoms are atomically mutable references to immutable data
-structures.  Thus, during refactoring, the reference to the inverse lookup map
-can be changed atomically to a new map reflecting an updated inverse lookup
-map.
+traceability information.  This traceability map is used in step~3 of the
+overall procedure, i.e., the back-propagation of changes in the program graph
+to the Java source code.
 
 
 \subsection{Step~2: Refactoring of the Program Graph}
