@@ -304,10 +304,10 @@ proposing refactorings to the user.
 
 The core \code|pull-up-member| and \code|create-superclass| rules both return
 closures which perform the refactoring's actions in the JaMoPP model when ARTE
-calls the \textsf{TestInterface}'s \code|synchronizeChanges()| method.
-Thereafter, the JaMoPP model needs to be saved to reflect those changes also in
-the Java source code files.  This is what \code|synchronizeChanges()| method of
-the solution's \textsf{TestInterface} implementation class does.
+calls the \textsf{TestInterface}'s \code|synchronizeChanges()| method.  Then,
+the JaMoPP model needs to be saved to reflect those changes also in the Java
+source code files.  This is done by the \code|synchronizeChanges()| method of
+the solution's \textsf{TestInterface} implementation.
 
 \begin{minted}[fontsize=\fontsize{8}{8}]{java}
     public boolean synchronizeChanges() {
@@ -320,118 +320,55 @@ the solution's \textsf{TestInterface} implementation class does.
     }
 \end{minted}
 
-In there, \code|synchronizedFns| is the list of functions returned by the rules
-which simply get invoked and perform the same changes to the JaMoPP model which
-have previously been applied to the program graph.  Thereafter, the JaMoPP
-resource set is saved which means that the source code files are updated
-accordingly.
+\code|synchronizedFns| is the list of closures returned by the rules which
+simply get invoked and perform the same changes to the JaMoPP model which have
+previously been applied to the program graph.  Thereafter, the JaMoPP resource
+set is saved which means that the source code files are updated accordingly.
 
 
-\section{Evaluation}
+\section{Evaluation \& Conclusion}
 \label{sec:evaluation}
 
 In this section, the FunnyQT solution is evaluated according to the criteria
-suggested in the case description.
+suggested in the case description which was also used as the basis for the open
+peer review.
 
-
-\paragraph{Correctness and completeness (max. 60 points).}
-
-The FunnyQT solution passes all test cases provided by the ARTE testing
-framework thus it seems to be correct and complete with respect to the
-restricted subset of Java detailed in the case description.  Thus, there is no
-obvious reason why it shouldn't earn the maximum of 60 points here.
-
-
-\paragraph{Performance (max. 10 points).}
+The FunnyQT solution is \emph{correct}, i.e., all tests performed by ARTE pass,
+and implements all core tasks.  Thus, it is also \emph{complete} and received a
+full score of 60 points.
 
 According to ARTE, the FunnyQT solution runs in less than a tenth of a second
-for all test cases on an off-the-shelf laptop except for \textit{pub\_pum3\_1}
-where the execution takes 0.67 seconds.  However, when running only that test
-(\code|execute --test pub_pum3_1|) its execution time is measured with 0.02
-seconds which matches the execution time of the other cases.  So this single
-outlier with \code|execute --all| seems to be a GC hiccup or something alike.
-However, the execution times for the toy examples tested by ARTE are not very
-significant anyhow.  It would be very interesting to have tests covering larger
-code bases on which multiple refactorings depending on each other are
-performed.
+for all test cases on an off-the-shelf laptop so the \emph{performance} seems
+to be good.  Nevertheless, the benchmarking performed by the case authors
+suggested that all other solutions except for NMF perform even better.
+However, all the ARTE test cases are actually too small to provide accurate
+numbers.  And in any case, the execution time of the actual refactorings on the
+program graph and the back-propagation into the JaMoPP model are completely
+negligible when being compared to the time JaMoPP needs to parse the Java
+sources, resolve references in the created model, and serialize the model back
+to Java again.
 
-In any case, the execution time of the actual refactorings on the program graph
-and the back-propagation into the JaMoPP model are completely negligible when
-being compared to the time JaMoPP needs to parse the Java sources, resolve
-references in the created model, and serialize the model back to Java again.
-As a reference, on a medium-sized project with 1358 files amounting to 257267
-LOC, JaMoPP takes about two minutes for parsing and reference resolution.
+Another strong point of the solution is its \emph{conciseness}.  It weights
+only 271 NCLOC of FunnyQT/Clojure code for all core and extension tasks and 145
+NCLOC of Java code for the \code|TestInterface| implementation class required
+by ARTE.
 
-Since the performance score will be assessed in comparison to other solutions,
-no value can be suggested here.
+The FunnyQT solution also received a high \emph{extension score} because it
+provides runnable implementations for the extensions~1 (\emph{extract
+  superclass}) and 2 (\emph{propose refactoring}).
 
+A \emph{main critic} of the solution and FunnyQT in general is that many
+developers used languages with C-like syntax such as Java dislike FunnyQT's
+Lisp-syntax.  Additionally, its functional emphasis where transformations and
+rules are essentially functions which might get composed and passed to
+higher-order functions requires a shift from the object-oriented to the
+functional paradigm.  Although this provides several benefits it also requires
+more learning effort and thus might hinder the adoption of FunnyQT.
 
-\paragraph{Reviewer opinion (max. 2 x 15 points).}
+Nevertheless, the FunnyQT solution received a reasonably good reviewer score
+which paired with its excellent correctness and completeness resulted in making
+it the overall winner of this case.
 
-The strongest point of the solution is its completeness in that it solves all
-core tasks and two out of three extension tasks.  FunnyQT's rule overloading
-and pattern inheritance features helped here a lot in order to avoid
-duplication of large parts of patterns.  However, pattern inheritance trades
-comprehensibility for conciseness.  The extended pattern is not visible in the
-extending pattern, thus the latter isn't understandable without the former.
-This is actually the same in OOP where the members inherited from superclasses
-aren't obviously visible in the subclasses.
-
-A strong point of the solution is its conciseness.  It weights only 271 NCLOC
-of FunnyQT/Clojure code for all core and extension tasks and 145 NCLOC of Java
-code for the \code|TestInterface| implementation class required by ARTE.
-
-The performance is also good for the provided test cases although the EMFText
-JaMoPP which is used by the solution might the bottleneck when applying the
-refactorings to larger code bases.
-
-With respect to debuggability, debugging FunnyQT rules quite doable.  The
-interactive rule application combinator \code|interactive-rule| used for
-solving extension 2 is actually a high-level debugging tool which lets users
-steer rule application manually, inspect matches, and visualize (parts of) the
-model under transformation.
-
-A weak point of the solution and FunnyQT (Clojure) in general can be seen in
-that it is dynamically typed, and thus type errors are runtime errors.  Of
-course, the type world implied by a metamodel is different than the type world
-of Java (at least unless classes are generated from the metamodel).  But for
-example, Henshin requires the metamodel to be known when specifying patterns
-and rules, and then the visual Henshin editor makes it impossible to define
-patterns which use types, references, or attributes which aren't defined by the
-metamodel.
-
-
-\paragraph{Extensions (max. 15 points).}
-
-The FunnyQT solution provides runnable implementations for the extensions~1
-(\emph{extract superclass}) and 2 (\emph{propose refactoring}).  Extension~3
-(\emph{detect refactoring conflicts}) hasn't been solved practically but an
-idea for its solution has been sketched.  However, that requires some further
-additions to FunnyQT's state space generation facility.  So the FunnyQT
-solution should score at least 10 out of 15 points for the extension task
-score.
-
-
-\section{Conclusion}
-\label{sec:conclusion}
-
-This paper discussed the FunnyQT solution to the TTC 2015 Java Refactoring
-case.  The solution solves all core tasks and also two out of three extension
-tasks, namely extensions 1 (\emph{extract superclass}) and 2 (\emph{propose
-  refactoring}).
-
-The solution is correct and complete.  All tests performed by the ARTE testing
-framework pass.
-
-The solution is also quite concise summing up to 271 lines of FunnyQT/Clojure
-code for the actual realization and 145 lines of Java code for the
-\code|TestInterface| implementation required by ARTE.
-
-The performance of the solution is also good.  All test cases are executed in
-small fractions of a second on an off-the-shelf laptop.  However, all tests
-performed by ARTE are executed on very small toy programs so the significance
-of the measured execution times with respect to real-world code bases is
-questionable.
 
 \bibliographystyle{eptcs}
 \bibliography{ttc-java-refactoring}
