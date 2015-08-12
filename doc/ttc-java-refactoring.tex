@@ -28,7 +28,7 @@
 \begin{abstract}
   This paper describes the FunnyQT solution to the TTC 2015 Java Refactoring
   transformation case.  The solution solves all core tasks and also the
-  extension tasks 1 and 2, and it has been selected as overall winner of this
+  extension tasks 1 and 2, and it has been elected as overall winner of this
   case.
 \end{abstract}
 
@@ -39,8 +39,9 @@
 This paper describes the FunnyQT\footnote{\url{http://funnyqt.org}}
 ~\cite{Horn2013MQWFQ,funnyqt-icgt15} solution of the TTC 2015 Java Refactoring
 Case~\cite{java-refactoring-case-desc}.  It solves all core and exception tasks
-with the exception of \emph{Extension~3: Detecting Refactoring Conflicts}.  The
-solution project is available on
+with the exception of \emph{Extension~3: Detecting Refactoring Conflicts} and
+has been elected as overall winner of the case.  The solution project is
+available on
 Github\footnote{\url{https://github.com/tsdh/ttc15-java-refactoring-funnyqt}},
 and it is set up for easy reproduction on a SHARE image\footnote{The SHARE
   image name is \verb|ArchLinux64_TTC15-FunnyQT_2|}.
@@ -68,13 +69,13 @@ this case, FunnyQT's out-place and in-place transformation DSLs have been used.
 \section{Solution Description}
 \label{sec:solution-description}
 
-The solution consists of three steps:
-\begin{compactenum}[1.]
-\item Converting the Java code to a program graph
-\item Refactoring the program graph
-\item Propagating changes in the program graph back to the Java code
-\end{compactenum}
-All steps are discussed in the following sections.
+The solution consists of three steps.
+\begin{inparaenum}[(1)]
+\item Converting the Java code to a program graph,
+\item refactoring the program graph, and
+\item propagating changes in the program graph back to the Java code.
+\end{inparaenum}
+These steps are discussed in the following sections.
 
 \subsection{Step 1: Java Code to Program Graph}
 \label{sec:step-1:java-to-pg}
@@ -86,38 +87,40 @@ solution does that in two substeps.
 \begin{compactenum}[(a)]
 \item Parse the Java source code into a model conforming to the EMFText
   JaMoPP\footnote{\url{http://www.jamopp.org/index.php/JaMoPP}} metamodel.
-\item Transform the JaMoPP model to a program graph metamodel using a FunnyQT
-  out-place transformation.
+\item Transform the JaMoPP model to a program graph using a FunnyQT out-place
+  transformation.
 \end{compactenum}
 Step (a) is implemented in the solution namespace
 \emph{ttc15-java-refactoring-funnyqt.jamopp}.  It simply sets up JaMoPP and
 defines two functions, one for parsing a source tree to a JaMoPP model, and a
 second one to synchronize the changes in a JaMoPP model back to the source
-tree.  Both just access JaMoPP built-in functionality.
+tree.  Both just access JaMoPP built-in functionality.  Being able to
+seamlessly interoperate with Java is a feature FunnyQT gets for free from its
+host language Clojure.
 
-Step (b) is implemented as a FunnyQT out-place transformation.  It creates a
-program graph from the JaMoPP model.
+Step (b) is implemented as a FunnyQT out-place transformation which creates a
+program graph from the parsed JaMoPP model.
 
-The transformation also minimizes the target program graph.  The source JaMoPP
-model contains the complete syntax graph of the parsed Java sources including
-all their dependencies.  In contrast, the program graph created by the
-transformation only contains \textsf{TClass} elements for the Java classes
-parsed from source code and direct dependencies used as field type or method
-parameter or method return type.  \textsf{TMember} elements are only created
-for the methods of directly parsed Java classes, and then only for those
-members that are not static because the case description explicitly excludes
-statics.  As a result, the program graph contains only the information relevant
-to the refactorings and is reasonably small so that it can be visualized which
-is nice especially for debugging purposes.
+The transformation also tries to keep the target program graph minimal.  The
+source JaMoPP model contains the complete syntax graph of the parsed Java
+sources including all their dependencies.  In contrast, the program graph
+created by the transformation only contains \textsf{TClass} elements for the
+Java classes parsed from source code and direct dependencies used as field type
+or method parameter or method return type.  \textsf{TMember} elements are only
+created for the methods of directly parsed Java classes, and then only for
+those members that are not static because the case description explicitly
+excludes those.  As a result, the program graph contains only the information
+relevant to the refactorings and is reasonably small so that it can be
+visualized by FunnyQT which is nice especially for debugging purposes.
 
 The FunnyQT out-place transformation API used for implementing this task is
 quite similar to ATL or QVT Operational Mappings.  There are mapping rules
 which receive one or many JaMoPP source elements and create one or many target
 program graph elements.
 
-A cutout of the transformation depicting the rules responsible for transforming
-fields is given in the following listing.  The transformation receives one
-single source model \code|jamopp| and one single target model \code|pg|.
+A cutout of the transformation showing the rules responsible for transforming
+fields is given below.  The transformation receives one single source model
+\code|jamopp| and one single target model \code|pg|.
 
 \begin{clojurecode}
 (deftransformation jamopp2pg [[jamopp] [pg]]
@@ -153,18 +156,21 @@ name, a new \textsf{TFieldSignature} is created.  If the rule is called
 thereafter for some other field with the same type and name, the existing field
 signature created at the first call is returned.  The field signature's
 \textsf{field} and \textsf{type} references pointing to a \textsf{TField} and a
-\textsf{TClass} respectively are set by calling the \code|get-tfield| and
-\code|type2tclass| rules which are not shown because of space limitations.
+\textsf{TClass} respectively are set by calling the two other rules
+\code|get-tfield| and \code|type2tclass|.  This latter rule is a disjunctive
+rule which delegates to either the \code|class2tclass| or the
+\code|primitive2tclass| rule\footnote{Rule disjunction is a feature borrowed
+  from QVTo}.
 
 In total, the transformation consists of 10 rules summing up to 71 lines of
 code.  In addition, there are five simple helper functions like \code|static?|,
 \code|get-type|, and \code|type-name| that have been used in the above rules
 already.
 
-A FunnyQT transformation like the one briefly discussed above returns a map of
-traceability information.  This traceability map is used in step~3 of the
-overall procedure, i.e., the back-propagation of changes in the program graph
-to the Java source code.
+A FunnyQT out-place transformation like the one briefly discussed above returns
+a map of traceability information.  This traceability map is used in step~3 of
+the overall procedure, i.e., the back-propagation of changes in the program
+graph to the Java source code.
 
 
 \subsection{Step~2: Refactoring of the Program Graph}
@@ -289,9 +295,9 @@ Note that the rule's variant (1) immediately invokes the function returned by
 but is intended for extension task~2, and with that there is no need to defer
 back-propagation.
 
-The other core rule \code|create-superclass| is defined analogously, and the
-extension rule \code|extract-superclass| simply combines
-\code|create-superclass| with \code|pull-up-member|.
+The rule \code|create-superclass| implementing the other core task is defined
+analogously, and the extension task~1 rule \code|extract-superclass| simply
+combines \code|create-superclass| with \code|pull-up-member|.
 
 FunnyQT provides built-in functionality to let users steer rule application,
 i.e., choose an applicable rule and one of its matches and then apply the rule
@@ -334,14 +340,14 @@ suggested in the case description which was also used as the basis for the open
 peer review.
 
 The FunnyQT solution is \emph{correct}, i.e., all tests performed by ARTE pass,
-and implements all core tasks.  Thus, it is also \emph{complete} and received a
-full score of 60 points.
+and it implements all core tasks.  Thus, it is also \emph{complete} and
+received a full score for the correctness and completeness criterium.
 
 According to ARTE, the FunnyQT solution runs in less than a tenth of a second
 for all test cases on an off-the-shelf laptop so the \emph{performance} seems
 to be good.  Nevertheless, the benchmarking performed by the case authors
 suggested that all other solutions except for NMF perform even better.
-However, all the ARTE test cases are actually too small to provide accurate
+However, all the ARTE test cases are actually too small to provide meaningful
 numbers.  And in any case, the execution time of the actual refactorings on the
 program graph and the back-propagation into the JaMoPP model are completely
 negligible when being compared to the time JaMoPP needs to parse the Java
@@ -349,16 +355,16 @@ sources, resolve references in the created model, and serialize the model back
 to Java again.
 
 Another strong point of the solution is its \emph{conciseness}.  It weights
-only 271 NCLOC of FunnyQT/Clojure code for all core and extension tasks and 145
-NCLOC of Java code for the \code|TestInterface| implementation class required
-by ARTE.
+only 271 NCLOC of FunnyQT code for all core and the two solved extension tasks
+and 145 NCLOC of Java code for the \code|TestInterface| implementation class
+required by ARTE.
 
 The FunnyQT solution also received a high \emph{extension score} because it
 provides runnable implementations for the extensions~1 (\emph{extract
   superclass}) and 2 (\emph{propose refactoring}).
 
 A \emph{main critic} of the solution and FunnyQT in general is that many
-developers used languages with C-like syntax such as Java dislike FunnyQT's
+developers used to languages with C-like syntax such as Java dislike FunnyQT's
 Lisp-syntax.  Additionally, its functional emphasis where transformations and
 rules are essentially functions which might get composed and passed to
 higher-order functions requires a shift from the object-oriented to the
@@ -366,8 +372,8 @@ functional paradigm.  Although this provides several benefits it also requires
 more learning effort and thus might hinder the adoption of FunnyQT.
 
 Nevertheless, the FunnyQT solution received a reasonably good reviewer score
-which paired with its excellent correctness and completeness resulted in making
-it the overall winner of this case.
+which paired with its correctness and completeness resulted in letting it carry
+off the overall winner award for this case.
 
 
 \bibliographystyle{eptcs}
