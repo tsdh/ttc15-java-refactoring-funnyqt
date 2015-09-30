@@ -8,9 +8,13 @@
 \usepackage{url}
 \usepackage{paralist}
 \usepackage{graphicx}
+
+\usepackage{relsize}
 \usepackage[cache]{minted}
-\newminted{clojure}{fontsize=\fontsize{8}{8},linenos,numbersep=3pt,numberblanklines=false}
-\newmintinline{clojure}{fontsize=\small}
+\setminted{fontsize=\fontsize{8}{8},breaklines=true,breakbytoken=true,autogobble,linenos,numbersep=3pt,numberblanklines=false}
+\setmintedinline{fontsize=\relscale{.9},breaklines=true,breakbytoken=true}
+\newminted{clojure}{}
+\newmintinline{clojure}{}
 \newcommand{\code}{\clojureinline}
 \VerbatimFootnotes
 
@@ -51,19 +55,22 @@ dialect Clojure\footnote{\url{http://clojure.org}}.  Queries and
 transformations are Clojure programs using the features provided by the FunnyQT
 API.
 
-Clojure provides strong metaprogramming capabilities that are used by FunnyQT
-in order to define several \emph{embedded domain-specific languages} (DSL) for
-different querying and transformation tasks.
+Clojure provides strong metaprogramming capabilities\footnote{The abstract
+  syntax of a program can be accessed as data and manipulated at compile-time.}
+that are used by FunnyQT in order to define several \emph{embedded
+  domain-specific languages} (DSLs) for different querying and transformation
+tasks.
 
 FunnyQT is designed with extensibility in mind.  By default, it supports EMF
 models and JGraLab TGraph models.  Support for other modeling frameworks can be
 added without having to touch FunnyQT's internals.
 
-The FunnyQT API is structured into several namespaces, each namespace providing
-constructs supporting concrete querying and transformation use-cases, e.g.,
-model management, pattern matching, out-place transformations, in-place
-transformations, bidirectional transformations, and some more.  For solving
-this case, FunnyQT's out-place and in-place transformation DSLs have been used.
+The FunnyQT API is structured into several namespaces, each one providing
+constructs supporting a concrete use-cases, e.g., model management,
+visualization, pattern matching, in-place transformations, out-place
+transformations, bidirectional transformations, and co-evolution
+transformations.  For solving this case, FunnyQT's out-place and in-place
+transformation DSLs have been used.
 
 
 \section{Solution Description}
@@ -111,7 +118,7 @@ created for the methods of directly parsed Java classes, and then only for
 those members that are not static because the case description explicitly
 excludes those.  As a result, the program graph contains only the information
 relevant to the refactorings and is reasonably small so that it can be
-visualized by FunnyQT which is nice especially for debugging purposes.
+visualized by FunnyQT which is helpful for debugging purposes.
 
 The FunnyQT out-place transformation API used for implementing this task is
 quite similar to ATL or QVT Operational Mappings.  There are mapping rules
@@ -189,12 +196,12 @@ corresponding JaMoPP \textsf{Class} and \textsf{Member} elements.
 
 \paragraph{Pull Up Member.}
 
-The case description requests \emph{pull-up method} as first refactoring core
-task.  However, with respect to the program graph metamodel, there is actually
-no difference in pulling up a method (\textsf{TMethodDefinition}) or a field
-(\textsf{TFieldDefinition}), i.e., it is possible to define the refactoring
-more generally as \emph{pull-up member} (\textsf{TMember}) and have it work for
-both fields and methods.  This is what the FunnyQT solution does.
+The case description requests \emph{pull-up method} as the first refactoring
+core task.  However, with respect to the program graph metamodel, there is
+actually no difference in pulling up a method (\textsf{TMethodDefinition}) or a
+field (\textsf{TFieldDefinition}), i.e., it is possible to define the
+refactoring more generally as \emph{pull-up member} (\textsf{TMember}) and have
+it work for both fields and methods.  This is what the FunnyQT solution does.
 
 The corresponding \code|pull-up-member| rule is shown in the next listing.  The
 rule is overloaded on arity.  There is the version (1) of arity three which
@@ -238,7 +245,7 @@ the superclass \code|super| must not define a member of the given \code|sig|
 already.  The constraint (c) ensures that all subclasses define a member of the
 given \code|sig|, i.e., not only a subset of all subclasses do so.  Lastly, the
 constraint (d) makes sure that all field and method definitions accessed by the
-member to be pulled up is already accessible from the superclass\footnote{The
+member to be pulled up are already accessible from the superclass\footnote{The
   \code|accessible-from?| predicate has been skipped for brevity.}.
 
 The pattern of the arity three variant (1) of the \code|pull-up-member| rule
@@ -308,14 +315,15 @@ proposing refactorings to the user.
 \subsection{Step~3: Program Graph to Java Code}
 \label{sec:step-3:pg-to-java}
 
-The core \code|pull-up-member| and \code|create-superclass| rules both return
+The core \code|pull-up-member| and \code|create-superclass| rules return
 closures which perform the refactoring's actions in the JaMoPP model when ARTE
-calls the \textsf{TestInterface}'s \code|synchronizeChanges()| method.  Then,
-the JaMoPP model needs to be saved to reflect those changes also in the Java
-source code files.  This is done by the \code|synchronizeChanges()| method of
-the solution's \textsf{TestInterface} implementation.
+calls the \mintinline{Java}|TestInterface|'s
+\mintinline{Java}|synchronizeChanges()| method.  Then, the JaMoPP model needs
+to be saved to reflect those changes also in the Java source code files.  This
+is done by the \mintinline{Java}|synchronizeChanges()| method of the solution's
+\mintinline{Java}|TestInterface| implementation.
 
-\begin{minted}[fontsize=\fontsize{8}{8}]{java}
+\begin{minted}[fontsize=\fontsize{8}{8},numbers=none]{java}
     public boolean synchronizeChanges() {
         try {
             for (IFn synchronizer : synchronizeFns) { synchronizer.invoke(jamoppRS); }
@@ -326,10 +334,11 @@ the solution's \textsf{TestInterface} implementation.
     }
 \end{minted}
 
-\code|synchronizedFns| is the list of closures returned by the rules which
-simply get invoked and perform the same changes to the JaMoPP model which have
-previously been applied to the program graph.  Thereafter, the JaMoPP resource
-set is saved which means that the source code files are updated accordingly.
+\mintinline{Java}|synchronizedFns| is the list of closures returned by the
+rules which simply get invoked and perform the same changes to the JaMoPP model
+which have previously been applied to the program graph.  Thereafter, the
+JaMoPP resource set is saved which means that the source code files are updated
+accordingly.
 
 
 \section{Evaluation \& Conclusion}
@@ -354,22 +363,22 @@ negligible when being compared to the time JaMoPP needs to parse the Java
 sources, resolve references in the created model, and serialize the model back
 to Java again.
 
-Another strong point of the solution is its \emph{conciseness}.  It weights
+Another strong point of the solution is its \emph{conciseness}.  It consists of
 only 271 NCLOC of FunnyQT code for all core and the two solved extension tasks
-and 145 NCLOC of Java code for the \code|TestInterface| implementation class
+and 145 NCLOC of Java code for the \mintinline{Java}|TestInterface| implementation class
 required by ARTE.
 
 The FunnyQT solution also received a high \emph{extension score} because it
 provides runnable implementations for the extensions~1 (\emph{extract
   superclass}) and 2 (\emph{propose refactoring}).
 
-A \emph{main critic} of the solution and FunnyQT in general is that many
+A \emph{main critique} of the solution and FunnyQT in general is that many
 developers used to languages with C-like syntax such as Java dislike FunnyQT's
 Lisp-syntax.  Additionally, its functional emphasis where transformations and
 rules are essentially functions which might get composed and passed to
 higher-order functions requires a shift from the object-oriented to the
 functional paradigm.  Although this provides several benefits it also requires
-more learning effort and thus might hinder the adoption of FunnyQT.
+more learning effort and might hinder the adoption of FunnyQT.
 
 Nevertheless, the FunnyQT solution received a reasonably good reviewer score
 which paired with its correctness and completeness resulted in letting it carry
